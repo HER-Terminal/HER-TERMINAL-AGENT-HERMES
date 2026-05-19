@@ -1,0 +1,12 @@
+.vercel
+node_modules/
+dist/
+.env
+.env.local
+.checks/
+.solc-out/
+.solc-mainnet-out/
+.solc-mainnet-out-new/
+.solc-mainnet-out-latest/
+.codex-*.png
+npm-debug.log*

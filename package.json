@@ -1,0 +1,23 @@
+{
+  "name": "her-base-agent-mint",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "agent-protocol": "node server/her-agent-protocol.js",
+    "deploy:mainnet": "node scripts/deploy-mainnet.js",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "lucide-react": "latest",
+    "ethers": "latest",
+    "solc": "^0.8.30"
+  },
+  "devDependencies": {}
+}
