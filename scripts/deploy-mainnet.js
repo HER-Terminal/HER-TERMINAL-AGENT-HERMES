@@ -9,6 +9,7 @@ const RPC_URL = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 const EXPLORER_URL = process.env.BASE_EXPLORER_URL || 'https://basescan.org';
 const DEPLOYER_PRIVATE_KEY = mustEnv('DEPLOYER_PRIVATE_KEY');
 const TREASURY_ADDRESS = mustAddress('TREASURY_ADDRESS');
+const TAX_RECIPIENT_ADDRESS = mustAddress('TAX_RECIPIENT_ADDRESS');
 const INITIAL_HERMES_AGENT = process.env.INITIAL_HERMES_AGENT || ethers.ZeroAddress;
 
 if (!ethers.isAddress(INITIAL_HERMES_AGENT)) {
@@ -51,10 +52,11 @@ if (Number(network.chainId) !== 8453) {
 
 console.log(`Deploying HERAgentMint on Base mainnet from ${deployer.address}`);
 console.log(`Treasury: ${TREASURY_ADDRESS}`);
+console.log(`Tax recipient: ${TAX_RECIPIENT_ADDRESS}`);
 console.log(`Initial Hermes Agent: ${INITIAL_HERMES_AGENT}`);
 
 const factory = new ethers.ContractFactory(abi, bytecode, deployer);
-const contract = await factory.deploy(TREASURY_ADDRESS, INITIAL_HERMES_AGENT);
+const contract = await factory.deploy(TREASURY_ADDRESS, TAX_RECIPIENT_ADDRESS, INITIAL_HERMES_AGENT);
 console.log(`Deploy tx: ${contract.deploymentTransaction().hash}`);
 await contract.waitForDeployment();
 
