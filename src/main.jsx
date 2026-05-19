@@ -485,7 +485,7 @@ function MintProgress({ stats, refreshStats }) {
   return (
     <section className="mintedBar">
       <div>
-        <span>agent minted</span>
+        <span>HER minted</span>
         <b>{minted.toLocaleString()} / {CONFIG.publicMint} {CONFIG.ticker}</b>
       </div>
       <strong className="mintPercent">{pctLabel}</strong>
