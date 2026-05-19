@@ -7,7 +7,7 @@ loadEnv();
 
 const RPC_URL = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 const EXPLORER_URL = process.env.BASE_EXPLORER_URL || 'https://basescan.org';
-const DEPLOYER_PRIVATE_KEY = mustEnv('DEPLOYER_PRIVATE_KEY');
+const DEPLOYER_PRIVATE_KEY = normalizePrivateKey(mustEnv('DEPLOYER_PRIVATE_KEY'));
 const TREASURY_ADDRESS = mustAddress('TREASURY_ADDRESS');
 const TAX_RECIPIENT_ADDRESS = mustAddress('TAX_RECIPIENT_ADDRESS');
 const INITIAL_HERMES_AGENT = process.env.INITIAL_HERMES_AGENT || ethers.ZeroAddress;
@@ -78,6 +78,14 @@ function mustAddress(key) {
   const value = mustEnv(key);
   if (!ethers.isAddress(value)) throw new Error(`${key} must be a valid address`);
   return value;
+}
+
+function normalizePrivateKey(value) {
+  const key = value.startsWith('0x') ? value : `0x${value}`;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(key)) {
+    throw new Error('DEPLOYER_PRIVATE_KEY must be a 32-byte hex private key');
+  }
+  return key;
 }
 
 function loadEnv() {
