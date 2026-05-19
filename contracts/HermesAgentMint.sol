@@ -38,7 +38,7 @@ contract HERAgentMint {
     uint256 public totalSupply;
     uint256 public mintedPublic;
     bool public paused;
-    bool public tradeTaxEnabled = true;
+    bool public tradeTaxEnabled;
     bool public lpReserveUnlocked;
 
     mapping(address => uint256) public balanceOf;
