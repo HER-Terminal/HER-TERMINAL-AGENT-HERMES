@@ -10,7 +10,9 @@ const CONTRACT_ADDRESS = mustAddress(process.env.HER_MINT_CONTRACT || process.en
 const TREASURY_ADDRESS = mustAddress(process.env.TREASURY_ADDRESS, 'TREASURY_ADDRESS');
 const TAX_RECIPIENT_ADDRESS = mustAddress(process.env.TAX_RECIPIENT_ADDRESS, 'TAX_RECIPIENT_ADDRESS');
 const INITIAL_HERMES_AGENT = process.env.INITIAL_HERMES_AGENT || ethers.ZeroAddress;
-const API_URL = process.env.BASESCAN_API_URL || 'https://api.basescan.org/api';
+const configuredApiUrl = process.env.ETHERSCAN_V2_API_URL || process.env.BASESCAN_API_URL || '';
+const API_URL = configuredApiUrl.includes('/v2/') ? configuredApiUrl : 'https://api.etherscan.io/v2/api';
+const CHAIN_ID = process.env.BASE_CHAIN_ID || process.env.VITE_BASE_CHAIN_ID || '8453';
 
 const sourcePath = path.resolve(process.cwd(), 'contracts', 'HermesAgentMint.sol');
 const source = fs.readFileSync(sourcePath, 'utf8');
@@ -36,6 +38,7 @@ const encodedArgs = ethers.AbiCoder.defaultAbiCoder().encode(
 
 const params = new URLSearchParams({
   apikey: API_KEY,
+  chainid: CHAIN_ID,
   module: 'contract',
   action: 'verifysourcecode',
   contractaddress: CONTRACT_ADDRESS,

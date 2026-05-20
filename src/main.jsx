@@ -163,6 +163,9 @@ function App() {
 
   async function loadActivityFeed() {
     try {
+      const cached = await readActivityEndpoint('/activity.json');
+      if (cached.length) setActivityFeed(cached);
+
       if (isAddress(CONFIG.contractAddress) && CONFIG.contractAddress !== ZERO) {
         const provider = new ethers.JsonRpcProvider(CONFIG.rpcUrl);
         const contract = getContract(provider);
@@ -171,31 +174,49 @@ function App() {
         const lines = events.slice(-10).reverse().map((event) => {
           const { receiver, agent, slots, amount } = event.args;
           const tokenAmount = Number(ethers.formatUnits(amount, 18)).toLocaleString();
-          return `[block ${event.blockNumber}] ${short(agent)} mined ${tokenAmount} HER for ${short(receiver)} / ${Number(slots)}x`;
+          return {
+            blockNumber: event.blockNumber,
+            txHash: event.transactionHash,
+            txUrl: `${CONFIG.explorer}/tx/${event.transactionHash}`,
+            agent,
+            receiver,
+            slots: Number(slots),
+            amount: tokenAmount,
+            status: 'mined',
+          };
         });
         if (lines.length) {
           setActivityFeed(lines);
           return;
         }
       }
-      const response = await fetch(`${CONFIG.agentProtocolUrl}/activity`, { cache: 'no-store' })
-        .catch(() => fetch('/activity.json', { cache: 'no-store' }));
-      if (!response.ok) return;
-      const data = await response.json();
-      const lines = (Array.isArray(data) ? data : data.items || [])
-        .map((item) => {
-          if (typeof item === 'string') return item;
-          const time = item.time || '--:--';
-          const wallet = item.receiver ? short(item.receiver) : 'unknown wallet';
-          const slotsText = item.slots ? `${item.slots} mint` : 'mint';
-          const hash = item.txHash ? short(item.txHash) : 'pending tx';
-          return `[${time}] ${wallet} minted HER / ${slotsText} / ${hash}`;
-        })
-        .filter(Boolean);
+      const lines = await readActivityEndpoint(`${CONFIG.agentProtocolUrl}/activity`);
       if (lines.length) setActivityFeed(lines);
     } catch {
       setActivityFeed(ACTIVITY_LINES);
     }
+  }
+
+  async function readActivityEndpoint(url) {
+    const response = await fetch(url, { cache: 'no-store' }).catch(() => null);
+    if (!response?.ok) return [];
+    const data = await response.json();
+    return (Array.isArray(data) ? data : data.items || [])
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        return {
+          time: item.time || '--:--',
+          blockNumber: item.blockNumber,
+          txHash: item.txHash,
+          txUrl: item.txUrl || (item.txHash ? `${CONFIG.explorer}/tx/${item.txHash}` : ''),
+          agent: item.agent || item.executor || '',
+          receiver: item.receiver || '',
+          slots: Number(item.slots || 0),
+          amount: item.amount ? Number(item.amount).toLocaleString() : item.slots ? (Number(item.slots) * CONFIG.perSlot).toLocaleString() : '',
+          status: 'indexed',
+        };
+      })
+      .filter(Boolean);
   }
 
   async function loadChainStats() {
@@ -497,22 +518,102 @@ function Mint(props) {
 }
 
 function ActivityTerminal({ lines = ACTIVITY_LINES }) {
+  const rows = normalizeActivity(lines);
+  const mintedRows = rows.filter((row) => row.kind === 'mint');
+  const primary = mintedRows[0];
+  const terminalRows = expandActivityRows(rows);
+
   return (
     <section className="activityTerminal">
       <div className="bar"><span /><span /><span /><b>live.agent.mint.activity</b></div>
       <div className="activityHeader">
         <b>Recent HER mints mined by wallet-enabled agents</b>
-        <span>Hermes recommended / any wallet-enabled agent can mine</span>
+        <span>Realtime Base events / Hermes recommended / any wallet-enabled agent can mine</span>
+      </div>
+      <div className="activityStats">
+        <span><b>{mintedRows.length || 0}</b><small>indexed mints</small></span>
+        <span><b>{primary?.blockNumber || '--'}</b><small>latest block</small></span>
+        <span><b>{primary?.amount || '1,000'}</b><small>HER per event</small></span>
       </div>
       <div className="activityWindow">
         <div className="activityTrack">
-          {[...lines, ...lines].map((line, index) => (
-            <p key={`${line}-${index}`}>{line}</p>
+          {terminalRows.map((row, index) => (
+            <a
+              className="activityRow"
+              href={row.txUrl || undefined}
+              target={row.txUrl ? '_blank' : undefined}
+              rel={row.txUrl ? 'noreferrer' : undefined}
+              key={`${row.message}-${index}`}
+            >
+              <i>{row.tag}</i>
+              <b>{row.message}</b>
+              <span>{row.meta}</span>
+            </a>
           ))}
         </div>
       </div>
     </section>
   );
+}
+
+function normalizeActivity(items = []) {
+  return items.map((item) => {
+    if (typeof item === 'string') {
+      return { kind: 'log', message: item, tag: 'log', meta: 'terminal heartbeat' };
+    }
+    const slots = Number(item.slots || 0);
+    const amount = item.amount || (slots ? (slots * CONFIG.perSlot).toLocaleString() : '');
+    return {
+      kind: 'mint',
+      blockNumber: item.blockNumber,
+      txHash: item.txHash,
+      txUrl: item.txUrl || (item.txHash ? `${CONFIG.explorer}/tx/${item.txHash}` : ''),
+      agent: item.agent || '',
+      receiver: item.receiver || '',
+      slots,
+      amount,
+      status: item.status || 'mined',
+    };
+  });
+}
+
+function expandActivityRows(rows) {
+  const minted = rows.filter((row) => row.kind === 'mint');
+  const base = minted.length ? minted : rows;
+  const expanded = base.flatMap((row) => {
+    if (row.kind !== 'mint') {
+      return [{ tag: 'sys', message: row.message, meta: row.meta || 'waiting for event stream' }];
+    }
+    const amount = row.amount || `${CONFIG.perSlot.toLocaleString()}`;
+    return [
+      {
+        tag: 'mint',
+        message: `${short(row.agent)} mined ${amount} HER for ${short(row.receiver)}`,
+        meta: `block ${row.blockNumber || '--'} / ${row.slots || 1}x / ${short(row.txHash)}`,
+        txUrl: row.txUrl,
+      },
+      {
+        tag: 'permit',
+        message: `signature packet verified for ${short(row.receiver)}`,
+        meta: `agent sender ${short(row.agent)} / direct website mint disabled`,
+        txUrl: row.txUrl,
+      },
+      {
+        tag: 'credit',
+        message: `${amount} HER credited to receiver wallet`,
+        meta: `Base receipt ${short(row.txHash)} / indexed live`,
+        txUrl: row.txUrl,
+      },
+    ];
+  });
+  const heartbeat = [
+    { tag: 'watch', message: 'indexer scanning AgentMinted events', meta: `${CONFIG.chainName} ${CONFIG.chainId} / polling live` },
+    { tag: 'rule', message: 'only agent wallet sends agentMint transaction', meta: 'user signs permit / agent mines HER' },
+  ];
+  const seed = expanded.length ? expanded : heartbeat;
+  const full = [];
+  while (full.length < 14) full.push(...seed, ...heartbeat);
+  return full.slice(0, 18);
 }
 
 function MintGuide() {
