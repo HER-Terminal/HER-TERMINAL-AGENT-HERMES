@@ -187,6 +187,8 @@ function App() {
     const injected = getMetaMaskProvider();
     if (!injected?.on) return undefined;
 
+    syncMetaMask(injected);
+
     const handleAccounts = (accounts = []) => {
       const next = accounts[0] || '';
       if (!next) {
@@ -211,6 +213,26 @@ function App() {
       injected.removeListener?.('chainChanged', handleChain);
     };
   }, []);
+
+  async function syncMetaMask(injected = getMetaMaskProvider()) {
+    if (!injected) return;
+    const [accounts, hexChainId] = await Promise.all([
+      injected.request({ method: 'eth_accounts' }).catch(() => []),
+      injected.request({ method: 'eth_chainId' }).catch(() => null),
+    ]);
+    const nextAccount = accounts?.[0] || '';
+    if (hexChainId) {
+      const nextChain = String(Number(hexChainId));
+      setChainId(nextChain);
+      localStorage.setItem('hermes_chain', nextChain);
+    }
+    if (nextAccount) {
+      setAccount(nextAccount);
+      localStorage.setItem('hermes_wallet', nextAccount);
+      loadWalletMints(nextAccount);
+      setStatus(Number(hexChainId) === CONFIG.chainId ? 'Base wallet ready' : 'switch wallet to Base');
+    }
+  }
 
   async function loadActivityFeed() {
     try {
@@ -298,25 +320,33 @@ function App() {
   }
 
   async function connectWallet() {
-    const injected = getMetaMaskProvider();
-    if (!injected) {
-      alert('MetaMask not found. Install MetaMask, then connect again.');
-      return;
+    try {
+      const injected = getMetaMaskProvider();
+      if (!injected) {
+        alert('MetaMask not found. Install MetaMask, then connect again.');
+        return;
+      }
+      setStatus('connecting MetaMask');
+      const accounts = await injected.request({ method: 'eth_requestAccounts' });
+      await ensureBase(injected);
+      const hexChainId = await injected.request({ method: 'eth_chainId' });
+      if (Number(hexChainId) !== CONFIG.chainId) {
+        setStatus('switch MetaMask to Base');
+        throw new Error('MetaMask must be connected to Base.');
+      }
+      const provider = new ethers.BrowserProvider(injected);
+      const signer = await provider.getSigner();
+      const nextAccount = await signer.getAddress();
+      const connected = nextAccount || accounts?.[0] || '';
+      setAccount(connected);
+      setChainId(String(CONFIG.chainId));
+      setStatus('Base wallet ready');
+      loadWalletMints(connected);
+      localStorage.setItem('hermes_wallet', connected);
+      localStorage.setItem('hermes_chain', String(CONFIG.chainId));
+    } catch (err) {
+      setStatus(err.shortMessage || err.message || 'wallet connect failed');
     }
-    await ensureBase(injected);
-    const provider = new ethers.BrowserProvider(injected);
-    const accounts = await provider.send('eth_requestAccounts', []);
-    const network = await provider.getNetwork();
-    if (Number(network.chainId) !== CONFIG.chainId) {
-      setStatus('switch MetaMask to Base');
-      throw new Error('MetaMask must be connected to Base.');
-    }
-    setAccount(accounts[0]);
-    setChainId(String(network.chainId));
-    setStatus('Base wallet ready');
-    loadWalletMints(accounts[0]);
-    localStorage.setItem('hermes_wallet', accounts[0]);
-    localStorage.setItem('hermes_chain', String(network.chainId));
   }
 
   function disconnectWallet() {
@@ -339,6 +369,7 @@ function App() {
     if (!injected) return alert('MetaMask not found.');
     await ensureBase(injected);
     setChainId(String(CONFIG.chainId));
+    setStatus('Base wallet ready');
     localStorage.setItem('hermes_chain', String(CONFIG.chainId));
   }
 
@@ -528,7 +559,10 @@ function Mint(props) {
         <h1>Mint $HER Through Your Agent Wallet</h1>
         <div className="actions">
           {props.account ? (
-            <button onClick={props.disconnectWallet}><Wallet size={18} /> disconnect</button>
+            <>
+              <span className="connectedPill"><i /> {short(props.account)} / {props.chainId === String(CONFIG.chainId) ? 'Base' : `chain ${props.chainId}`}</span>
+              <button onClick={props.disconnectWallet}><Wallet size={18} /> disconnect</button>
+            </>
           ) : (
             <button onClick={props.connectWallet}><Wallet size={18} /> connect</button>
           )}

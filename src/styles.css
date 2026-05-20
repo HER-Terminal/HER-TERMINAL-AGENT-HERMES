@@ -271,6 +271,29 @@ nav {
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
+}
+
+.connectedPill {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,.78);
+  padding: 7px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  box-shadow: 0 0 12px rgba(255,255,255,.14);
+  white-space: nowrap;
+}
+
+.connectedPill i {
+  width: 8px;
+  height: 8px;
+  background: var(--ink);
+  box-shadow: 0 0 10px var(--glow);
 }
 
 .statusSteps {
