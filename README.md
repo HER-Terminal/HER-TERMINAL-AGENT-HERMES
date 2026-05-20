@@ -120,6 +120,35 @@ POST /activity
 GET  /health
 ```
 
+## Activity Indexer
+
+The frontend can read `AgentMinted` events directly, and the optional indexer can also write a persistent `activity.json` feed.
+
+```bash
+npm run activity:indexer
+```
+
+Useful env values:
+
+```text
+HER_INDEXER_START_BLOCK=0
+HER_INDEXER_POLL_MS=15000
+HER_ACTIVITY_FILE=public/activity.json
+HER_INDEXER_STATE_FILE=.her-indexer-state.json
+```
+
+## BaseScan Verification
+
+Add a BaseScan API key, then submit verification:
+
+```text
+BASESCAN_API_KEY=...
+```
+
+```bash
+npm run verify:basescan
+```
+
 ## Production Notes
 
 - Verify the contract on BaseScan.

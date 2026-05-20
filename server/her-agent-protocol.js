@@ -5,7 +5,6 @@ import { ethers } from 'ethers';
 
 const ABI = [
   'function agentMint(address receiver,uint8 slots,uint256 deadline,bytes32 missionHash,bytes signature) payable',
-  'function hermesAgent(address agent) view returns (bool)',
   'function mintFee() view returns (uint256)',
 ];
 

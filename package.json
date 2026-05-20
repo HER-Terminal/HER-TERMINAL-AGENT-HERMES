@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "agent-protocol": "node server/her-agent-protocol.js",
+    "activity:indexer": "node server/activity-indexer.js",
     "deploy:mainnet": "node scripts/deploy-mainnet.js",
+    "verify:basescan": "node scripts/verify-basescan.js",
+    "test:agent-mint:mainnet": "node scripts/test-agent-mint-mainnet.js",
     "agent:check": "node scripts/check-agent.js",
     "agent:mint": "node scripts/agent-mint.js",
     "build": "vite build",

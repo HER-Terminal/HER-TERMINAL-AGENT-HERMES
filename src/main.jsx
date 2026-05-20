@@ -7,6 +7,7 @@ import {
   ExternalLink,
   KeyRound,
   Network,
+  PlugZap,
   ShieldCheck,
   Terminal,
   Wallet,
@@ -166,7 +167,7 @@ function App() {
         const provider = new ethers.JsonRpcProvider(CONFIG.rpcUrl);
         const contract = getContract(provider);
         const latest = await provider.getBlockNumber();
-        const events = await contract.queryFilter(contract.filters.AgentMinted(), Math.max(0, latest - 50000), latest);
+        const events = await contract.queryFilter(contract.filters.AgentMinted(), Math.max(0, latest - 9000), latest);
         const lines = events.slice(-10).reverse().map((event) => {
           const { receiver, agent, slots, amount } = event.args;
           const tokenAmount = Number(ethers.formatUnits(amount, 18)).toLocaleString();
@@ -351,6 +352,7 @@ function App() {
             ['mint', 'mint'],
             ['agent', 'packet'],
             ['passport', 'status'],
+            ['setup', 'setup'],
             ['proof', 'guide'],
           ].map(([key, label]) => (
             <button key={key} className={page === key ? 'active' : ''} onClick={() => setPage(key)}>
@@ -406,6 +408,7 @@ function App() {
       {page === 'passport' && (
         <Passport account={account} agentAddress={agentAddress} chainId={chainId} permit={permit} slots={slots} fee={fee} chainStats={chainStats} />
       )}
+      {page === 'setup' && <AgentSetup copy={copy} copied={copied} />}
       {page === 'proof' && <Proof hermesPrompt={hermesPrompt} copy={copy} copied={copied} />}
     </div>
   );
@@ -600,6 +603,44 @@ function Passport({ account, agentAddress, chainId, permit, slots, fee, chainSta
         <ConsoleLine k="token per mint" v={`${CONFIG.perSlot.toLocaleString()} ${CONFIG.ticker}`} />
         <ConsoleLine k="wallet limit" v={`${CONFIG.maxSlots} mints`} />
         <ConsoleLine k="fee per mint" v={`${CONFIG.feePerSlotEth} ETH`} />
+      </Panel>
+    </main>
+  );
+}
+
+function AgentSetup({ copy, copied }) {
+  const terminalCommand = [
+    'HER_AGENT_SETUP',
+    '1. Create or open an agent with its own wallet.',
+    '2. Fund that agent wallet with Base ETH for gas + mint fee.',
+    '3. Ask the agent to create a HER mission code.',
+    '4. Paste agent wallet + mission code in HER Terminal.',
+    '5. Sign permit, then give the packet back to the agent.',
+  ].join('\n');
+
+  const agentPrompt = [
+    'Create a HER mint mission on Base.',
+    `Website: https://her-terminal.xyz`,
+    `Contract: ${CONFIG.contractAddress}`,
+    'Return your agent wallet address and a mission code like HER-8453-XXXX.',
+    'After I sign, execute the packet from the same agent wallet.',
+  ].join('\n');
+
+  return (
+    <main className="panelpage">
+      <Panel title="agent setup" icon={<PlugZap />}>
+        <Step n="01" t="Wallet inside agent" d="The agent needs its own wallet/executor. If the agent has no wallet, it cannot mine HER." />
+        <Step n="02" t="Fund Base ETH" d="Send enough Base ETH to the agent wallet for gas plus 0.0006 ETH per mint." />
+        <Step n="03" t="Create mission" d="Ask the agent for a HER mission code and its agent wallet address." />
+        <Step n="04" t="Return packet" d="After signing on HER Terminal, copy the packet back to the same agent wallet." />
+        <a className="scan" href="https://hermes-agent.nousresearch.com/" target="_blank" rel="noreferrer">
+          <ExternalLink size={16} /> open Hermes Agent
+        </a>
+      </Panel>
+      <Panel title="copy for your agent" icon={<Terminal />}>
+        <code className="block">{agentPrompt}</code>
+        <button onClick={() => copy(agentPrompt, 'agentSetupPrompt')}><Copy size={16} /> {copied === 'agentSetupPrompt' ? 'copied' : 'copy agent prompt'}</button>
+        <code className="block">{terminalCommand}</code>
       </Panel>
     </main>
   );
