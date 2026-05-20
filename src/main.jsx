@@ -353,8 +353,8 @@ function App() {
         <nav>
           {[
             ['mint', 'mint'],
-            ['agent', 'agent'],
-            ['passport', 'activity'],
+            ['agent', 'packet'],
+            ['passport', 'status'],
             ['proof', 'guide'],
           ].map(([key, label]) => (
             <button key={key} className={page === key ? 'active' : ''} onClick={() => setPage(key)}>
@@ -589,14 +589,14 @@ function Agent({ account, agentAddress, permit, deadline, hermesPrompt, missionR
 function Passport({ account, agentAddress, chainId, permit, slots, fee, chainStats }) {
   return (
     <main className="panelpage">
-      <Panel title="Agent passport" icon={<BadgeCheck />}>
+      <Panel title="Agent wallet status" icon={<BadgeCheck />}>
         <ConsoleLine k="user wallet" v={short(account)} />
         <ConsoleLine k="agent wallet" v={short(agentAddress)} />
         <ConsoleLine k="network" v={chainId === String(CONFIG.chainId) ? `${CONFIG.chainName} / ${CONFIG.chainId}` : chainId} />
         <ConsoleLine k="mints" v={String(slots)} />
         <ConsoleLine k="permit" v={permit ? 'signed' : 'not signed'} />
       </Panel>
-      <Panel title="Supply map" icon={<ShieldCheck />}>
+      <Panel title="Supply status" icon={<ShieldCheck />}>
         <ConsoleLine k="total supply" v={`${CONFIG.totalSupply} ${CONFIG.ticker}`} />
         <ConsoleLine k="public mint" v={`${CONFIG.publicMint} ${CONFIG.ticker}`} />
         <ConsoleLine k="minted now" v={`${(chainStats?.mintedPublic || 0).toLocaleString()} ${CONFIG.ticker}`} />
