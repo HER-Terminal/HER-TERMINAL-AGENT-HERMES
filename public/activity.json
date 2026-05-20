@@ -1,5 +1,5 @@
 [
-  "[demo] waiting for user-owned Hermes Agent mint activity",
-  "[demo] HER Agent Protocol will append confirmed agentMint receipts here",
+  "[demo] waiting for wallet-enabled agent mint activity",
+  "[demo] authorized agent wallets can append confirmed agentMint receipts here",
   "[demo] activity feed refreshes every 10 seconds"
 ]

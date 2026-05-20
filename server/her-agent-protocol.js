@@ -18,19 +18,14 @@ const RPC_URL = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 const EXPLORER_URL = process.env.BASE_EXPLORER_URL || 'https://basescan.org';
 const CONTRACT_ADDRESS = process.env.HER_MINT_CONTRACT || process.env.VITE_HER_MINT_CONTRACT;
 const WEBSITE_URL = process.env.HER_WEBSITE_URL || 'http://localhost:5173/';
-const RELAY_PRIVATE_KEY = process.env.HER_RELAY_PRIVATE_KEY || '';
 const PUBLIC_DIR = path.resolve(process.cwd(), 'public');
 const ACTIVITY_FILE = path.join(PUBLIC_DIR, 'activity.json');
 
 if (!ethers.isAddress(CONTRACT_ADDRESS || '')) {
-  console.warn('HER_MINT_CONTRACT is not set yet. Mission API will still run, relay will fail until configured.');
+  console.warn('HER_MINT_CONTRACT is not set yet. Mission API will still run, but packets cannot point to a live contract yet.');
 }
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
-const relayWallet = RELAY_PRIVATE_KEY ? new ethers.Wallet(RELAY_PRIVATE_KEY, provider) : null;
-const relayContract = relayWallet && ethers.isAddress(CONTRACT_ADDRESS || '')
-  ? new ethers.Contract(CONTRACT_ADDRESS, ABI, relayWallet)
-  : null;
 
 const missions = new Map();
 
@@ -43,7 +38,6 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/activity') return sendJson(res, 200, readActivity());
     if (req.method === 'POST' && url.pathname === '/activity') return recordActivity(req, res);
     if (req.method === 'GET' && url.pathname === '/mission') return sendJson(res, 200, createMission(url));
-    if (req.method === 'POST' && url.pathname === '/relay') return relayPacket(req, res);
 
     return sendJson(res, 404, { error: 'not_found' });
   } catch (err) {
@@ -52,11 +46,11 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`HER Agent Protocol running on http://localhost:${PORT}`);
+  console.log(`HER Agent Mission API running on http://localhost:${PORT}`);
   console.log(`Network: ${CHAIN_NAME} (${CHAIN_ID})`);
   console.log(`Website: ${WEBSITE_URL}`);
   console.log(`Contract: ${CONTRACT_ADDRESS || 'not configured'}`);
-  console.log(`Relay executor: ${relayWallet?.address || 'disabled - user agents must self-execute'}`);
+  console.log('Relay executor: disabled. Wallet-enabled agents must self-execute.');
 });
 
 function createMission(url) {
@@ -69,66 +63,12 @@ function createMission(url) {
     network: CHAIN_NAME,
     contract: CONTRACT_ADDRESS || '',
     website: WEBSITE_URL,
-    executor: ethers.isAddress(requestedExecutor) ? requestedExecutor : relayWallet?.address || '',
-    relay: relayWallet ? `http://localhost:${PORT}/relay` : '',
+    executor: ethers.isAddress(requestedExecutor) ? requestedExecutor : '',
     expiresAt: Date.now() + 60 * 60 * 1000,
-    instruction: 'Ask the user to open the HER website, paste this mission, sign permit, then return the packet to this Hermes Agent.',
+    instruction: 'Ask the user to open the HER website, paste this mission and your agent wallet, sign permit, then return the packet to your wallet-enabled agent.',
   };
   missions.set(missionCode, mission);
   return mission;
-}
-
-async function relayPacket(req, res) {
-  if (!relayContract || !relayWallet) {
-    return sendJson(res, 400, {
-      error: 'relay_disabled',
-      message: 'No HER_RELAY_PRIVATE_KEY is configured. The user-owned Hermes Agent must send agentMint itself.',
-    });
-  }
-
-  const packet = await readBody(req);
-  const mission = missions.get(packet.missionCode);
-  if (!mission) return sendJson(res, 400, { error: 'mission_not_found' });
-  if (Date.now() > mission.expiresAt) return sendJson(res, 400, { error: 'mission_expired' });
-
-  const receiver = packet.receiver;
-  const slots = Number(packet.args?.[1] ?? packet.slots);
-  const deadline = BigInt(packet.args?.[2] ?? packet.deadline);
-  const missionHash = packet.args?.[3] ?? packet.missionHash;
-  const signature = packet.args?.[4] ?? packet.signature;
-
-  if (!ethers.isAddress(receiver || '')) return sendJson(res, 400, { error: 'invalid_receiver' });
-  if (packet.executor?.toLowerCase() !== relayWallet.address.toLowerCase()) return sendJson(res, 400, { error: 'executor_mismatch' });
-  if (missionHash !== mission.missionHash) return sendJson(res, 400, { error: 'mission_hash_mismatch' });
-  if (!Number.isInteger(slots) || slots < 1 || slots > 10) return sendJson(res, 400, { error: 'invalid_slots' });
-  if (deadline <= BigInt(Math.floor(Date.now() / 1000))) return sendJson(res, 400, { error: 'permit_expired' });
-  if (!signature || !String(signature).startsWith('0x')) return sendJson(res, 400, { error: 'missing_signature' });
-
-  const authorized = await relayContract.hermesAgent(relayWallet.address);
-  if (!authorized) return sendJson(res, 400, { error: 'executor_not_authorized' });
-
-  const mintFee = await relayContract.mintFee();
-  const tx = await relayContract.agentMint(receiver, slots, deadline, missionHash, signature, {
-    value: mintFee * BigInt(slots),
-  });
-  const receipt = await tx.wait();
-  missions.delete(packet.missionCode);
-
-  appendActivity({
-    time: new Date().toISOString().slice(11, 16),
-    receiver,
-    slots,
-    txHash: receipt.hash,
-    missionCode: packet.missionCode,
-    executor: relayWallet.address,
-    route: 'her-agent-protocol-relay',
-  });
-
-  return sendJson(res, 200, {
-    ok: true,
-    txHash: receipt.hash,
-    explorer: `${EXPLORER_URL}/tx/${receipt.hash}`,
-  });
 }
 
 async function recordActivity(req, res) {

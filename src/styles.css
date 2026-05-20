@@ -424,6 +424,18 @@ label span {
   flex-wrap: wrap;
 }
 
+.copyRow {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 10px;
+  flex-wrap: wrap;
+}
+
+.copyRow button {
+  min-height: 30px;
+  box-shadow: none;
+}
+
 .mintChoices button {
   min-height: 28px;
   min-width: 54px;
