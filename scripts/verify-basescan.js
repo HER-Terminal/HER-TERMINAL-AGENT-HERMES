@@ -38,14 +38,13 @@ const encodedArgs = ethers.AbiCoder.defaultAbiCoder().encode(
 
 const params = new URLSearchParams({
   apikey: API_KEY,
-  chainid: CHAIN_ID,
   module: 'contract',
   action: 'verifysourcecode',
   contractaddress: CONTRACT_ADDRESS,
   sourceCode: JSON.stringify(input),
   codeformat: 'solidity-standard-json-input',
   contractname: 'HermesAgentMint.sol:HERAgentMint',
-  compilerversion: `v${solc.version()}`,
+  compilerversion: solcCompilerVersion(),
   optimizationUsed: '1',
   runs: '200',
   constructorArguements: encodedArgs,
@@ -53,7 +52,8 @@ const params = new URLSearchParams({
   licenseType: '3',
 });
 
-const response = await fetch(API_URL, { method: 'POST', body: params });
+const endpoint = `${API_URL}?chainid=${encodeURIComponent(CHAIN_ID)}`;
+const response = await fetch(endpoint, { method: 'POST', body: params });
 const result = await response.json();
 console.log(JSON.stringify(result, null, 2));
 
@@ -70,6 +70,13 @@ function mustEnv(key) {
 function mustAddress(value, key) {
   if (!ethers.isAddress(value || '')) throw new Error(`${key} must be a valid address`);
   return value;
+}
+
+function solcCompilerVersion() {
+  const version = solc.version();
+  const match = version.match(/^(\d+\.\d+\.\d+\+commit\.[0-9a-fA-F]+)/);
+  if (!match) throw new Error(`Unsupported solc version format: ${version}`);
+  return `v${match[1]}`;
 }
 
 function loadEnv() {

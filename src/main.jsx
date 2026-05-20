@@ -521,19 +521,19 @@ function ActivityTerminal({ lines = ACTIVITY_LINES }) {
   const rows = normalizeActivity(lines);
   const mintedRows = rows.filter((row) => row.kind === 'mint');
   const primary = mintedRows[0];
-  const terminalRows = expandActivityRows(rows);
+  const terminalRows = buildMintRows(mintedRows);
 
   return (
     <section className="activityTerminal">
       <div className="bar"><span /><span /><span /><b>live.agent.mint.activity</b></div>
       <div className="activityHeader">
-        <b>Recent HER mints mined by wallet-enabled agents</b>
-        <span>Realtime Base events / Hermes recommended / any wallet-enabled agent can mine</span>
+        <b>Live HER mint activity</b>
+        <span>Detected from AgentMinted events on Base</span>
       </div>
       <div className="activityStats">
-        <span><b>{mintedRows.length || 0}</b><small>indexed mints</small></span>
+        <span><b>{mintedRows.length || 0}</b><small>detected users</small></span>
         <span><b>{primary?.blockNumber || '--'}</b><small>latest block</small></span>
-        <span><b>{primary?.amount || '1,000'}</b><small>HER per event</small></span>
+        <span><b>{primary?.amount || '--'}</b><small>latest HER</small></span>
       </div>
       <div className="activityWindow">
         <div className="activityTrack">
@@ -577,43 +577,26 @@ function normalizeActivity(items = []) {
   });
 }
 
-function expandActivityRows(rows) {
-  const minted = rows.filter((row) => row.kind === 'mint');
-  const base = minted.length ? minted : rows;
-  const expanded = base.flatMap((row) => {
-    if (row.kind !== 'mint') {
-      return [{ tag: 'sys', message: row.message, meta: row.meta || 'waiting for event stream' }];
-    }
-    const amount = row.amount || `${CONFIG.perSlot.toLocaleString()}`;
+function buildMintRows(rows) {
+  if (!rows.length) {
     return [
       {
-        tag: 'mint',
-        message: `${short(row.agent)} mined ${amount} HER for ${short(row.receiver)}`,
-        meta: `block ${row.blockNumber || '--'} / ${row.slots || 1}x / ${short(row.txHash)}`,
-        txUrl: row.txUrl,
-      },
-      {
-        tag: 'permit',
-        message: `signature packet verified for ${short(row.receiver)}`,
-        meta: `agent sender ${short(row.agent)} / direct website mint disabled`,
-        txUrl: row.txUrl,
-      },
-      {
-        tag: 'credit',
-        message: `${amount} HER credited to receiver wallet`,
-        meta: `Base receipt ${short(row.txHash)} / indexed live`,
-        txUrl: row.txUrl,
+        tag: 'live',
+        message: 'waiting for the next HER mint',
+        meta: 'when a user receives HER, their wallet appears here',
       },
     ];
+  }
+
+  return rows.slice(0, 8).map((row) => {
+    const amount = row.amount || `${CONFIG.perSlot.toLocaleString()}`;
+    return {
+      tag: 'mint',
+      message: `${short(row.receiver)} received ${amount} HER`,
+      meta: `agent ${short(row.agent)} / block ${row.blockNumber || '--'} / ${row.slots || 1}x / tx ${short(row.txHash)}`,
+      txUrl: row.txUrl,
+    };
   });
-  const heartbeat = [
-    { tag: 'watch', message: 'indexer scanning AgentMinted events', meta: `${CONFIG.chainName} ${CONFIG.chainId} / polling live` },
-    { tag: 'rule', message: 'only agent wallet sends agentMint transaction', meta: 'user signs permit / agent mines HER' },
-  ];
-  const seed = expanded.length ? expanded : heartbeat;
-  const full = [];
-  while (full.length < 14) full.push(...seed, ...heartbeat);
-  return full.slice(0, 18);
 }
 
 function MintGuide() {
@@ -773,6 +756,16 @@ function Proof({ hermesPrompt, copy, copied }) {
           <ExternalLink size={16} /> open Hermes Agent
         </a>
       </Panel>
+      <Panel title="FAQ" icon={<ShieldCheck />}>
+        <Faq q="Can I mint directly from the website?" a="No. The website only signs a permit. The actual mint transaction must be sent by an agent wallet." />
+        <Faq q="What is an agent wallet?" a="It is the wallet controlled by your Telegram agent, Hermes Agent, or another terminal agent. It must be able to send Base transactions." />
+        <Faq q="Can the agent wallet be my normal wallet?" a="No. The receiver wallet and agent wallet must be different. This keeps HER as an agent-mint flow, not a direct mint button." />
+        <Faq q="What if my agent has no wallet?" a="That agent cannot mint HER. Create or connect a wallet inside the agent first, then fund it with Base ETH." />
+        <Faq q="Who receives the HER token?" a="The connected user wallet receives HER. The agent wallet only executes the transaction." />
+        <Faq q="Who pays the mint fee?" a="The agent wallet sends the transaction and pays 0.0006 ETH per mint plus Base gas." />
+        <Faq q="What appears in live activity?" a="Confirmed AgentMinted events: receiver wallet, amount, agent wallet, block, and transaction link." />
+        <Faq q="How many can I mint?" a="Each user wallet can mint up to 10 times. Each mint gives 1,000 HER." />
+      </Panel>
     </main>
   );
 }
@@ -800,6 +793,15 @@ function Step({ n, t, d }) {
     <div className="step">
       <strong>{n}</strong>
       <div><b>{t}</b><p>{d}</p></div>
+    </div>
+  );
+}
+
+function Faq({ q, a }) {
+  return (
+    <div className="faqItem">
+      <b>{q}</b>
+      <p>{a}</p>
     </div>
   );
 }

@@ -459,8 +459,6 @@ label span {
 
 .activityTerminal {
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
 .activityHeader {
@@ -516,8 +514,7 @@ label span {
 
 .activityWindow {
   position: relative;
-  flex: 1;
-  min-height: 470px;
+  height: 235px;
   overflow: hidden;
   border: 1px solid var(--dim);
   background: rgba(0,0,0,.72);
@@ -546,16 +543,15 @@ label span {
 }
 
 .activityTrack {
-  min-height: 100%;
   padding: 10px;
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 7px;
   animation: none;
 }
 
 .activityRow {
-  min-height: 48px;
+  min-height: 44px;
   border: 1px solid rgba(255,255,255,.2);
   background:
     linear-gradient(90deg, rgba(255,255,255,.08), rgba(255,255,255,.02) 36%, rgba(0,0,0,.25)),
@@ -573,7 +569,7 @@ label span {
 .activityRow i {
   grid-row: 1 / 3;
   width: 52px;
-  min-height: 28px;
+  min-height: 26px;
   display: grid;
   place-items: center;
   border: 1px solid var(--line);
@@ -708,6 +704,22 @@ label span {
   color: var(--muted);
   line-height: 1.55;
   margin: 5px 0 0;
+}
+
+.faqItem {
+  border-top: 1px dashed var(--dim);
+  padding: 10px 0;
+}
+
+.faqItem b {
+  display: block;
+  text-transform: uppercase;
+}
+
+.faqItem p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 @media (max-width: 1080px) {
