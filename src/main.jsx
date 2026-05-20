@@ -183,6 +183,35 @@ function App() {
     loadWalletMints(account);
   }, [account]);
 
+  useEffect(() => {
+    const injected = getMetaMaskProvider();
+    if (!injected?.on) return undefined;
+
+    const handleAccounts = (accounts = []) => {
+      const next = accounts[0] || '';
+      if (!next) {
+        disconnectWallet();
+        return;
+      }
+      setAccount(next);
+      localStorage.setItem('hermes_wallet', next);
+      loadWalletMints(next);
+    };
+    const handleChain = (hexChainId) => {
+      const next = String(Number(hexChainId));
+      setChainId(next);
+      localStorage.setItem('hermes_chain', next);
+      setStatus(next === String(CONFIG.chainId) ? 'Base wallet ready' : 'switch wallet to Base');
+    };
+
+    injected.on('accountsChanged', handleAccounts);
+    injected.on('chainChanged', handleChain);
+    return () => {
+      injected.removeListener?.('accountsChanged', handleAccounts);
+      injected.removeListener?.('chainChanged', handleChain);
+    };
+  }, []);
+
   async function loadActivityFeed() {
     try {
       const cached = await readActivityEndpoint('/activity.json');
@@ -278,8 +307,13 @@ function App() {
     const provider = new ethers.BrowserProvider(injected);
     const accounts = await provider.send('eth_requestAccounts', []);
     const network = await provider.getNetwork();
+    if (Number(network.chainId) !== CONFIG.chainId) {
+      setStatus('switch MetaMask to Base');
+      throw new Error('MetaMask must be connected to Base.');
+    }
     setAccount(accounts[0]);
     setChainId(String(network.chainId));
+    setStatus('Base wallet ready');
     loadWalletMints(accounts[0]);
     localStorage.setItem('hermes_wallet', accounts[0]);
     localStorage.setItem('hermes_chain', String(network.chainId));
@@ -816,19 +850,6 @@ function Proof({ hermesPrompt, copy, copied }) {
           <ExternalLink size={16} /> open Hermes Agent
         </a>
       </Panel>
-      <Panel title="FAQ" icon={<ShieldCheck />}>
-        <Faq q="Can I mint directly from the website?" a="No. The website only signs a permit. The actual mint transaction must be sent by an agent wallet." />
-        <Faq q="What is an agent wallet?" a="It is the wallet controlled by your Telegram agent, Hermes Agent, or another terminal agent. It must be able to send Base transactions." />
-        <Faq q="Can the agent wallet be my normal wallet?" a="No. The receiver wallet and agent wallet must be different. This keeps HER as an agent-mint flow, not a direct mint button." />
-        <Faq q="What if my agent has no wallet?" a="That agent cannot mint HER. Create or connect a wallet inside the agent first, then fund it with Base ETH." />
-        <Faq q="Who receives the HER token?" a="The connected user wallet receives HER. The agent wallet only executes the transaction." />
-        <Faq q="Who pays the mint fee?" a="The agent wallet sends the transaction and pays 0.0006 ETH per mint plus Base gas." />
-        <Faq q="Can I use a Telegram agent?" a="Yes, if that Telegram agent controls a wallet and can send Base contract transactions. Hermes is recommended, but the chain only checks the signed agent wallet." />
-        <Faq q="Which wallet should I connect?" a="Use MetaMask on Base. HER Terminal now looks for MetaMask first and switches/adds Base during connect." />
-        <Faq q="Why does the site ask me to sign?" a="Your signature creates a one-mission permit. It tells the contract which receiver, agent wallet, mint count, deadline, and mission hash are allowed." />
-        <Faq q="What appears in live activity?" a="Confirmed AgentMinted events: receiver wallet, amount, agent wallet, block, and transaction link." />
-        <Faq q="How many can I mint?" a="Each user wallet can mint up to 10 times. Each mint gives 1,000 HER." />
-      </Panel>
     </main>
   );
 }
@@ -856,15 +877,6 @@ function Step({ n, t, d }) {
     <div className="step">
       <strong>{n}</strong>
       <div><b>{t}</b><p>{d}</p></div>
-    </div>
-  );
-}
-
-function Faq({ q, a }) {
-  return (
-    <div className="faqItem">
-      <b>{q}</b>
-      <p>{a}</p>
     </div>
   );
 }

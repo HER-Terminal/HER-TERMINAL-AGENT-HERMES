@@ -678,22 +678,6 @@ label span {
   margin: 5px 0 0;
 }
 
-.faqItem {
-  border-top: 1px dashed var(--dim);
-  padding: 10px 0;
-}
-
-.faqItem b {
-  display: block;
-  text-transform: uppercase;
-}
-
-.faqItem p {
-  margin: 5px 0 0;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
 @media (max-width: 1080px) {
   .shell {
     width: min(92vw, 900px);
