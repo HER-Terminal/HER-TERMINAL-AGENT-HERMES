@@ -462,7 +462,9 @@ function App() {
             </button>
           ))}
         </nav>
-        <div className="online"><i /> {CONFIG.chainName} {CONFIG.chainId}</div>
+        <a className="xLink" href="https://x.com/HerBase_" target="_blank" rel="noreferrer" aria-label="HER on X">
+          <img src="/x-logo.svg" alt="" />
+        </a>
       </header>
 
       {page === 'mint' && (

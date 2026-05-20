@@ -204,22 +204,31 @@ nav {
   color: #050005;
 }
 
-.online {
+.xLink {
   border: 1px solid var(--line);
-  padding: 8px 10px;
+  width: 48px;
+  height: 38px;
   background: rgba(0,0,0,.64);
-  font-weight: 900;
-  white-space: nowrap;
+  display: grid;
+  place-items: center;
   box-shadow: 0 0 16px var(--glow2);
+  text-decoration: none;
 }
 
-.online i {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
+.xLink:hover {
   background: var(--ink);
-  margin-right: 8px;
-  box-shadow: 0 0 10px var(--glow);
+  box-shadow: 0 0 22px var(--glow);
+}
+
+.xLink img {
+  width: 22px;
+  height: 22px;
+  image-rendering: pixelated;
+  filter: grayscale(1) contrast(1.2);
+}
+
+.xLink:hover img {
+  filter: invert(1) grayscale(1) contrast(1.4);
 }
 
 .hero {
