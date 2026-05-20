@@ -91,6 +91,16 @@ function getContract(signerOrProvider) {
   return new ethers.Contract(CONFIG.contractAddress, HER_MINT_ABI, signerOrProvider);
 }
 
+function getMetaMaskProvider() {
+  const injected = window.ethereum;
+  if (!injected) return null;
+  if (injected.isMetaMask) return injected;
+  if (Array.isArray(injected.providers)) {
+    return injected.providers.find((provider) => provider.isMetaMask) || null;
+  }
+  return null;
+}
+
 function App() {
   const [page, setPage] = useState('mint');
   const [account, setAccount] = useState(localStorage.getItem('hermes_wallet') || '');
@@ -259,11 +269,13 @@ function App() {
   }
 
   async function connectWallet() {
-    if (!window.ethereum) {
-      alert('Wallet extension not found. Install MetaMask, Rabby, or another Base wallet.');
+    const injected = getMetaMaskProvider();
+    if (!injected) {
+      alert('MetaMask not found. Install MetaMask, then connect again.');
       return;
     }
-    const provider = new ethers.BrowserProvider(window.ethereum);
+    await ensureBase(injected);
+    const provider = new ethers.BrowserProvider(injected);
     const accounts = await provider.send('eth_requestAccounts', []);
     const network = await provider.getNetwork();
     setAccount(accounts[0]);
@@ -273,19 +285,39 @@ function App() {
     localStorage.setItem('hermes_chain', String(network.chainId));
   }
 
+  function disconnectWallet() {
+    setAccount('');
+    setChainId('--');
+    setPermit('');
+    setDeadline('');
+    setTxHash('');
+    setWalletMints(null);
+    setStatus('wallet disconnected');
+    localStorage.removeItem('hermes_wallet');
+    localStorage.removeItem('hermes_chain');
+    localStorage.removeItem('hermes_permit');
+    localStorage.removeItem('hermes_deadline');
+    localStorage.removeItem('hermes_tx');
+  }
+
   async function switchBase() {
-    if (!window.ethereum) return alert('Wallet extension not found.');
+    const injected = getMetaMaskProvider();
+    if (!injected) return alert('MetaMask not found.');
+    await ensureBase(injected);
+    setChainId(String(CONFIG.chainId));
+    localStorage.setItem('hermes_chain', String(CONFIG.chainId));
+  }
+
+  async function ensureBase(injected) {
     try {
-      await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: baseParams.chainId }] });
+      await injected.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: baseParams.chainId }] });
     } catch (err) {
       if (err.code === 4902) {
-        await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [baseParams] });
+        await injected.request({ method: 'wallet_addEthereumChain', params: [baseParams] });
       } else {
         throw err;
       }
     }
-    setChainId(String(CONFIG.chainId));
-    localStorage.setItem('hermes_chain', String(CONFIG.chainId));
   }
 
   async function signHermesPermit() {
@@ -295,14 +327,17 @@ function App() {
       if (!missionCode.trim()) throw new Error('Enter the mission code from your agent.');
 
       setStatus('signing permit');
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      const injected = getMetaMaskProvider();
+      if (!injected) throw new Error('MetaMask not found.');
+      await ensureBase(injected);
+      const provider = new ethers.BrowserProvider(injected);
       const signer = await provider.getSigner();
       const receiver = await signer.getAddress();
       if (agentAddress.toLowerCase() === receiver.toLowerCase()) {
         throw new Error('Agent wallet must be different from the receiver wallet.');
       }
       const network = await provider.getNetwork();
-      if (Number(network.chainId) !== CONFIG.chainId) await switchBase();
+      if (Number(network.chainId) !== CONFIG.chainId) throw new Error('Switch MetaMask to Base and try again.');
 
       const contract = getContract(signer);
       const nonce = await contract.nonces(receiver);
@@ -413,6 +448,7 @@ function App() {
           status={status}
           switchBase={switchBase}
           connectWallet={connectWallet}
+          disconnectWallet={disconnectWallet}
           txHash={txHash}
           updateAgent={updateAgent}
           updateMission={updateMission}
@@ -455,7 +491,11 @@ function Mint(props) {
         <p className="eyebrow">{CONFIG.chainName} / WALLET-ENABLED AGENTS ONLY / HERMES RECOMMENDED</p>
         <h1>Mint $HER Through Your Agent Wallet</h1>
         <div className="actions">
-          <button onClick={props.connectWallet}><Wallet size={18} /> connect</button>
+          {props.account ? (
+            <button onClick={props.disconnectWallet}><Wallet size={18} /> disconnect</button>
+          ) : (
+            <button onClick={props.connectWallet}><Wallet size={18} /> connect</button>
+          )}
           <button onClick={props.switchBase}><Network size={18} /> Base</button>
           <button className="primary" onClick={props.signHermesPermit} disabled={!configured}>
             <ClipboardSignature size={18} /> sign permit
@@ -784,6 +824,7 @@ function Proof({ hermesPrompt, copy, copied }) {
         <Faq q="Who receives the HER token?" a="The connected user wallet receives HER. The agent wallet only executes the transaction." />
         <Faq q="Who pays the mint fee?" a="The agent wallet sends the transaction and pays 0.0006 ETH per mint plus Base gas." />
         <Faq q="Can I use a Telegram agent?" a="Yes, if that Telegram agent controls a wallet and can send Base contract transactions. Hermes is recommended, but the chain only checks the signed agent wallet." />
+        <Faq q="Which wallet should I connect?" a="Use MetaMask on Base. HER Terminal now looks for MetaMask first and switches/adds Base during connect." />
         <Faq q="Why does the site ask me to sign?" a="Your signature creates a one-mission permit. It tells the contract which receiver, agent wallet, mint count, deadline, and mission hash are allowed." />
         <Faq q="What appears in live activity?" a="Confirmed AgentMinted events: receiver wallet, amount, agent wallet, block, and transaction link." />
         <Faq q="How many can I mint?" a="Each user wallet can mint up to 10 times. Each mint gives 1,000 HER." />

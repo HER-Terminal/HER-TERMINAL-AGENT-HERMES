@@ -244,11 +244,17 @@ nav {
 
 .hero h1 {
   margin: 0;
-  max-width: 760px;
-  font-size: clamp(28px, 2.75vw, 46px);
-  line-height: 1.02;
+  max-width: none;
+  font-family: "Courier New", "Cascadia Mono", ui-monospace, monospace;
+  font-size: clamp(22px, 2.05vw, 34px);
+  line-height: 1;
+  letter-spacing: .01em;
   text-transform: uppercase;
-  text-shadow: none;
+  white-space: nowrap;
+  text-shadow:
+    1px 0 0 rgba(255,255,255,.7),
+    0 1px 0 rgba(255,255,255,.45);
+  image-rendering: pixelated;
 }
 
 .actions {
@@ -614,10 +620,15 @@ label span {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
+  align-items: start;
 }
 
 .panelpage.single {
   grid-template-columns: minmax(320px, 760px);
+}
+
+.panel {
+  align-self: start;
 }
 
 .panel h3 {
@@ -715,7 +726,8 @@ label span {
   }
 
   .hero h1 {
-    font-size: 32px;
+    font-size: 28px;
+    white-space: normal;
   }
 
   button {
