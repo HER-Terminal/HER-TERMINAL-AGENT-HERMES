@@ -114,14 +114,20 @@ function App() {
 
   const missionRequest = useMemo(() => {
     return [
-      'HER_AGENT_MISSION_REQUEST',
-      `network: ${CONFIG.chainName} / ${CONFIG.chainId}`,
-      `contract: ${CONFIG.contractAddress}`,
-      `receiver: ${account || '<connected wallet>'}`,
-      `mints: ${slots}x`,
-      'requirement: you must use an agent wallet that can send Base transactions',
-      'return: agent wallet address + mission code',
-      'note: Hermes Agent is recommended, but any wallet-enabled agent can mine HER',
+      'HER HERMES AGENT COMMAND',
+      '',
+      `Mint $HER for my wallet on ${CONFIG.chainName}.`,
+      `Receiver wallet: ${account || '<connect wallet on HER Terminal first>'}`,
+      `Mint count: ${slots}x`,
+      `Contract: ${CONFIG.contractAddress}`,
+      '',
+      'Use your own agent wallet as the transaction sender.',
+      'Create one mission code for this mint.',
+      'Return exactly:',
+      '1. Agent wallet address',
+      '2. Mission code',
+      '',
+      'After I sign the permit on HER Terminal, I will send you the execution packet.',
     ].join('\n');
   }, [account, slots]);
 
@@ -136,17 +142,23 @@ function App() {
       permit || '<permit signature>',
     ];
     return [
-      'HER_AGENT_MINT_PACKET',
-      `task: mint $HER on ${CONFIG.chainName}`,
-      `receiver: ${receiver}`,
-      `mints: ${slots}x / ${CONFIG.perSlot.toLocaleString()} HER each`,
-      `agentWallet: ${agentAddress || '<wallet-enabled agent address>'}`,
-      `mission: ${missionCode || '<mission code from your agent>'}`,
-      `call: agentMint(${args.join(', ')})`,
-      `feePerMint: ${CONFIG.feePerSlotEth} ETH`,
-      'rule: transaction sender must be the agent wallet in this packet',
-      'rule: receiver signs, agent sends, website never mints directly',
-      'return: tx hash + BaseScan link',
+      'HER HERMES AGENT EXECUTION PACKET',
+      '',
+      `Task: execute the signed HER mint on ${CONFIG.chainName}.`,
+      `Receiver: ${receiver}`,
+      `Agent wallet sender: ${agentAddress || '<your agent wallet>'}`,
+      `Mint count: ${slots}x`,
+      `HER amount: ${(slots * CONFIG.perSlot).toLocaleString()} HER`,
+      `Contract: ${CONFIG.contractAddress}`,
+      `Function: agentMint(${args.join(', ')})`,
+      `Value: ${CONFIG.feePerSlotEth} ETH x ${slots}`,
+      '',
+      'Rules:',
+      '- Send the transaction from the same agent wallet above.',
+      '- Do not change receiver, mint count, mission hash, deadline, or signature.',
+      '- Website does not mint directly; the agent wallet must execute.',
+      '',
+      'Return the transaction hash and BaseScan link.',
     ].join('\n');
   }, [account, agentAddress, deadline, missionCode, permit, slots]);
 
@@ -530,10 +542,10 @@ function ActivityTerminal({ lines = ACTIVITY_LINES }) {
         <b>Live HER mint activity</b>
         <span>Detected from AgentMinted events on Base</span>
       </div>
-      <div className="activityStats">
-        <span><b>{mintedRows.length || 0}</b><small>detected users</small></span>
-        <span><b>{primary?.blockNumber || '--'}</b><small>latest block</small></span>
-        <span><b>{primary?.amount || '--'}</b><small>latest HER</small></span>
+      <div className="activitySummary">
+        <span>users: <b>{mintedRows.length || 0}</b></span>
+        <span>latest block: <b>{primary?.blockNumber || '--'}</b></span>
+        <span>latest HER: <b>{primary?.amount || '--'}</b></span>
       </div>
       <div className="activityWindow">
         <div className="activityTrack">
@@ -581,7 +593,7 @@ function buildMintRows(rows) {
   if (!rows.length) {
     return [
       {
-        tag: 'live',
+        tag: 'WAIT',
         message: 'waiting for the next HER mint',
         meta: 'when a user receives HER, their wallet appears here',
       },
@@ -591,9 +603,9 @@ function buildMintRows(rows) {
   return rows.slice(0, 8).map((row) => {
     const amount = row.amount || `${CONFIG.perSlot.toLocaleString()}`;
     return {
-      tag: 'mint',
+      tag: 'MINT',
       message: `${short(row.receiver)} received ${amount} HER`,
-      meta: `agent ${short(row.agent)} / block ${row.blockNumber || '--'} / ${row.slots || 1}x / tx ${short(row.txHash)}`,
+      meta: `agent ${short(row.agent)} | block ${row.blockNumber || '--'} | ${row.slots || 1}x | tx ${short(row.txHash)}`,
       txUrl: row.txUrl,
     };
   });
@@ -703,11 +715,19 @@ function AgentSetup({ copy, copied }) {
   ].join('\n');
 
   const agentPrompt = [
-    'Create a HER mint mission on Base.',
-    `Website: https://her-terminal.xyz`,
+    'HER HERMES AGENT COMMAND',
+    '',
+    'Mint $HER for my wallet on Base.',
+    'Website: https://her-terminal.xyz',
     `Contract: ${CONFIG.contractAddress}`,
-    'Return your agent wallet address and a mission code like HER-8453-XXXX.',
-    'After I sign, execute the packet from the same agent wallet.',
+    '',
+    'Step 1: use your own agent wallet as executor.',
+    'Step 2: create one mission code like HER-8453-XXXX.',
+    'Step 3: return your agent wallet address and mission code.',
+    'Step 4: wait for my signed execution packet.',
+    'Step 5: send agentMint from that same agent wallet.',
+    '',
+    'Do not mint from the website. The agent wallet must execute the transaction.',
   ].join('\n');
 
   return (
@@ -734,12 +754,12 @@ function Proof({ hermesPrompt, copy, copied }) {
   return (
     <main className="panelpage">
       <Panel title="beginner guide" icon={<Terminal />}>
-        <Step n="01" t="Use an agent wallet" d="Your agent must own a wallet and be able to send Base transactions. No wallet, no mint." />
-        <Step n="02" t="Ask for mission" d={`Tell your agent: Create a HER mint mission on ${CONFIG.chainName} for my connected wallet.`} />
-        <Step n="03" t="Paste agent data" d="Paste the agent wallet and mission code into this terminal. Hermes Agent is recommended, but any wallet-enabled agent can mine HER." />
-        <Step n="04" t="Sign mission" d="Sign the permit. This does not mint yet and does not move tokens. It only approves this one agent mission." />
-        <Step n="05" t="Return packet" d="Copy the packet from the Agent tab and give it back to your wallet-enabled agent." />
-        <Step n="06" t="Agent mines" d="The agent wallet executes agentMint, pays the mint fee, and HER lands in your wallet." />
+        <Step n="01" t="Prepare two wallets" d="Your normal wallet receives HER. Your agent wallet sends the mint transaction. They cannot be the same address." />
+        <Step n="02" t="Fund the agent wallet" d="The agent wallet needs Base ETH for gas and 0.0006 ETH per mint. Your receiver wallet only signs." />
+        <Step n="03" t="Ask for mission" d={`Copy the HER Hermes Agent Command and ask your agent to create a mission on ${CONFIG.chainName}.`} />
+        <Step n="04" t="Paste agent data" d="Paste the agent wallet and mission code into HER Terminal, then choose 1x, 2x, 5x, or 10x." />
+        <Step n="05" t="Sign permit" d="Sign the permit. This is not a mint transaction. It only approves that exact agent wallet for that exact mission." />
+        <Step n="06" t="Agent mines" d="Copy the packet to your agent. The agent wallet executes agentMint, pays the fee, and HER lands in your receiver wallet." />
       </Panel>
       <Panel title="contract" icon={<ExternalLink />}>
         <ConsoleLine k="network" v={`${CONFIG.chainName} / ${CONFIG.chainId}`} />
@@ -763,6 +783,8 @@ function Proof({ hermesPrompt, copy, copied }) {
         <Faq q="What if my agent has no wallet?" a="That agent cannot mint HER. Create or connect a wallet inside the agent first, then fund it with Base ETH." />
         <Faq q="Who receives the HER token?" a="The connected user wallet receives HER. The agent wallet only executes the transaction." />
         <Faq q="Who pays the mint fee?" a="The agent wallet sends the transaction and pays 0.0006 ETH per mint plus Base gas." />
+        <Faq q="Can I use a Telegram agent?" a="Yes, if that Telegram agent controls a wallet and can send Base contract transactions. Hermes is recommended, but the chain only checks the signed agent wallet." />
+        <Faq q="Why does the site ask me to sign?" a="Your signature creates a one-mission permit. It tells the contract which receiver, agent wallet, mint count, deadline, and mission hash are allowed." />
         <Faq q="What appears in live activity?" a="Confirmed AgentMinted events: receiver wallet, amount, agent wallet, block, and transaction link." />
         <Faq q="How many can I mint?" a="Each user wallet can mint up to 10 times. Each mint gives 1,000 HER." />
       </Panel>
