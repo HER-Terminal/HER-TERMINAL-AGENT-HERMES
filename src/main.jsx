@@ -387,11 +387,14 @@ function App() {
 
   async function signHermesPermit() {
     try {
+      if (!isAddress(CONFIG.contractAddress) || CONFIG.contractAddress === ZERO) {
+        throw new Error('Contract is not configured.');
+      }
       if (!account) await connectWallet();
       if (!isAddress(agentAddress)) throw new Error('Enter the agent wallet address first.');
       if (!missionCode.trim()) throw new Error('Enter the mission code from your agent.');
 
-      setStatus('signing permit');
+      setStatus('open MetaMask and sign permit');
       const injected = getMetaMaskProvider();
       if (!injected) throw new Error('MetaMask not found.');
       await ensureBase(injected);
@@ -442,8 +445,9 @@ function App() {
       localStorage.setItem('hermes_slots', String(slots));
       localStorage.setItem('hermes_permit', sig);
       localStorage.setItem('hermes_deadline', String(nextDeadline));
+      setPage('agent');
     } catch (err) {
-      setStatus(err.message || 'permit failed');
+      setStatus(err.shortMessage || err.message || 'permit failed');
     }
   }
 
@@ -467,6 +471,14 @@ function App() {
     await navigator.clipboard.writeText(text);
     setCopied(key);
     setTimeout(() => setCopied(''), 1200);
+  }
+
+  function openPacket() {
+    if (!permit) {
+      setStatus('sign permit first, then packet will appear');
+      return;
+    }
+    setPage('agent');
   }
 
   return (
@@ -520,6 +532,7 @@ function App() {
           updateAgent={updateAgent}
           updateMission={updateMission}
           updateSlots={updateSlots}
+          openPacket={openPacket}
           chainStats={chainStats}
           walletMints={walletMints}
           refreshStats={loadChainStats}
@@ -567,11 +580,13 @@ function Mint(props) {
             <button onClick={props.connectWallet}><Wallet size={18} /> connect</button>
           )}
           <button onClick={props.switchBase}><Network size={18} /> Base</button>
-          <button className="primary" onClick={props.signHermesPermit} disabled={!configured}>
-            <ClipboardSignature size={18} /> sign permit
-          </button>
         </div>
       </section>
+
+      <div className={`statusBanner ${props.permit ? 'ready' : ''}`}>
+        <b>{props.permit ? 'packet ready' : 'terminal status'}</b>
+        <span>{props.permit ? 'signed permit saved / open packet tab' : props.status}</span>
+      </div>
 
       <div className="statusSteps heroFlow">
         <span><i>01</i> ask agent</span>
@@ -602,7 +617,10 @@ function Mint(props) {
             <button type="button" onClick={() => props.copy(props.missionRequest, 'mission')}>
               <Copy size={16} /> {props.copied === 'mission' ? 'copied' : 'copy mission request'}
             </button>
-            <button type="button" disabled={!props.permit} onClick={() => props.setPage('agent')}>
+            <button type="button" className="primary" onClick={props.signHermesPermit} disabled={!configured}>
+              <ClipboardSignature size={16} /> sign permit
+            </button>
+            <button type="button" className={props.permit ? 'primary' : ''} onClick={props.openPacket}>
               <Terminal size={16} /> packet
             </button>
           </div>

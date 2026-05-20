@@ -311,6 +311,34 @@ nav {
   margin: 0 0 12px;
 }
 
+.statusBanner {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 12px;
+  align-items: center;
+  min-height: 34px;
+  border: 1px solid var(--dim);
+  background: rgba(0,0,0,.76);
+  padding: 7px 12px;
+  margin: -2px 0 12px;
+  text-transform: uppercase;
+}
+
+.statusBanner b {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.statusBanner span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.statusBanner.ready {
+  border-color: var(--line);
+  box-shadow: 0 0 18px rgba(255,255,255,.16);
+}
+
 .statusSteps span {
   display: inline-flex;
   align-items: center;
