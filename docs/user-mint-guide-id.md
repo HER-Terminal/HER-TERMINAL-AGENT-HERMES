@@ -1,24 +1,25 @@
 # Panduan Mint HER Untuk User Awam
 
-HER tidak di-mint dari tombol website biasa. HER hanya bisa di-mint oleh agent yang punya wallet sendiri.
+HER tidak di-mint dari tombol website biasa. Website HER hanya terminal untuk connect wallet dan tanda tangan mission. Transaksi mint harus dikirim oleh agent yang punya wallet sendiri.
 
-Hermes Agent adalah route yang direkomendasikan, tapi agent lain juga bisa dipakai kalau agent itu punya wallet dan bisa kirim transaksi di Base.
+Hermes Agent direkomendasikan, tapi agent lain juga bisa dipakai kalau agent itu punya wallet dan bisa kirim transaksi di Base.
 
 ## Yang User Butuhkan
 
 1. Wallet pribadi seperti MetaMask atau Rabby.
 2. Network Base.
 3. Agent yang punya wallet/executor sendiri.
-4. Agent wallet yang sudah authorized di contract HER.
+4. ETH di wallet agent untuk gas dan fee mint.
 5. Mission code dari agent.
 
 ## Aturan Mint
 
 1. 1 mint = 1,000 HER.
-2. Limit per wallet = 10 mint.
+2. Limit per wallet user = 10 mint.
 3. Fee = 0.0006 ETH per mint.
 4. Website tidak bisa direct mint.
 5. Agent wallet wajib mengirim transaksi mint.
+6. Agent wallet harus beda dari wallet user penerima.
 
 ## Cara Mint
 
@@ -46,9 +47,9 @@ https://her-terminal.xyz
 6. Switch ke Base.
 7. Paste agent wallet.
 8. Paste mission code.
-9. Pilih jumlah mint.
+9. Pilih jumlah mint: 1x, 2x, 5x, atau 10x.
 10. Klik `sign permit`.
-11. Buka tab `Agent`.
+11. Buka tab `Packet`.
 12. Copy packet.
 13. Kirim packet itu balik ke agent.
 14. Agent wallet menjalankan transaksi `agentMint`.
@@ -80,4 +81,4 @@ User harus memakai agent yang punya wallet dan bisa kirim transaksi Base.
 
 ## Kenapa Bukan Direct Mint?
 
-Karena konsep HER adalah agent mining. Smart contract hanya menerima transaksi dari agent wallet yang authorized. Website cuma terminal untuk connect wallet dan sign mission.
+Karena konsep HER adalah agent mining. Website hanya membuat packet dan permit. Smart contract menerima transaksi dari wallet agent yang tertulis di permit, bukan dari tombol mint website.

@@ -6,11 +6,14 @@ pragma solidity ^0.8.24;
   Not audited. Review, test, and deploy with a production toolchain before mainnet use.
 
   Flow:
-  1. User asks their own Hermes Agent to mint HER.
-  2. The agent provides an executor + mission code.
+  1. User asks a wallet-enabled agent to mint HER.
+  2. The agent provides its wallet address + mission code.
   3. User signs an EIP-712 AgentMint permit for that executor and mission.
-  4. The user's Hermes Agent calls agentMint(...) and pays mintFee * slots.
-  5. Contract verifies msg.sender is an authorized Hermes executor and mints to receiver.
+  4. The agent wallet calls agentMint(...) and pays mintFee * slots.
+  5. Contract verifies msg.sender is the signed agent wallet and mints to receiver.
+
+  The website has no direct mint function. Any wallet-enabled agent can execute,
+  but the receiver wallet must sign the mission first.
 */
 contract HERAgentMint {
     string public constant name = "HER";
@@ -45,14 +48,13 @@ contract HERAgentMint {
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => uint256) public nonces;
     mapping(address => uint8) public mintsByWallet;
-    mapping(address => bool) public hermesAgent;
     mapping(address => bool) public taxExempt;
     mapping(address => bool) public taxedTradeRoute;
 
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
     event AgentMinted(address indexed receiver, address indexed agent, uint8 slots, uint256 amount, uint256 fee, bytes32 missionHash);
-    event HermesAgentUpdated(address indexed agent, bool allowed);
+    event AgentWalletPolicy(address indexed agent, bool accepted);
     event FeeUpdated(uint256 fee);
     event MintFeesWithdrawn(address indexed to, uint256 amount);
     event TaxRecipientUpdated(address indexed recipient);
@@ -69,11 +71,6 @@ contract HERAgentMint {
         _;
     }
 
-    modifier onlyHermesAgent() {
-        require(hermesAgent[msg.sender], "NOT_HERMES_AGENT");
-        _;
-    }
-
     constructor(address treasury_, address taxRecipient_, address initialAgent) {
         require(treasury_ != address(0), "BAD_TREASURY");
         require(taxRecipient_ != address(0), "BAD_TAX_RECIPIENT");
@@ -85,9 +82,8 @@ contract HERAgentMint {
         taxExempt[treasury_] = true;
         taxExempt[taxRecipient_] = true;
         if (initialAgent != address(0)) {
-            hermesAgent[initialAgent] = true;
             taxExempt[initialAgent] = true;
-            emit HermesAgentUpdated(initialAgent, true);
+            emit AgentWalletPolicy(initialAgent, true);
         }
         _mint(address(this), LP_RESERVE);
         _mint(treasury_, TREASURY_RESERVE);
@@ -113,8 +109,9 @@ contract HERAgentMint {
         uint256 deadline,
         bytes32 missionHash,
         bytes calldata signature
-    ) external payable onlyHermesAgent {
+    ) external payable {
         require(receiver != address(0), "BAD_RECEIVER");
+        require(msg.sender != receiver, "AGENT_REQUIRED");
         require(missionHash != bytes32(0), "BAD_MISSION");
         require(block.timestamp <= deadline, "EXPIRED");
         _validateMint(receiver, slots);
@@ -175,11 +172,14 @@ contract HERAgentMint {
         withdrawMintFees(to, address(this).balance);
     }
 
+    function hermesAgent(address agent) external pure returns (bool) {
+        return agent != address(0);
+    }
+
     function setHermesAgent(address agent, bool allowed) external onlyOwner {
         require(agent != address(0), "BAD_AGENT");
-        hermesAgent[agent] = allowed;
         taxExempt[agent] = allowed;
-        emit HermesAgentUpdated(agent, allowed);
+        emit AgentWalletPolicy(agent, allowed);
     }
 
     function setTaxRecipient(address recipient) external onlyOwner {

@@ -19,7 +19,6 @@ const provider = new ethers.JsonRpcProvider(rpcUrl, 8453, { batchMaxCount: 1 });
 const agent = new ethers.Wallet(agentKey, provider);
 const contract = new ethers.Contract(contractAddress, [
   'function agentMint(address receiver,uint8 slots,uint256 deadline,bytes32 missionHash,bytes signature) payable',
-  'function hermesAgent(address agent) view returns(bool)',
   'function mintFee() view returns(uint256)',
 ], agent);
 
@@ -33,9 +32,12 @@ if (!ethers.isAddress(receiver || '')) throw new Error('Packet receiver is inval
 if (!Number.isInteger(slots) || slots < 1 || slots > 10) throw new Error('Packet slots must be 1-10');
 if (!missionHash || !String(missionHash).startsWith('0x')) throw new Error('Packet missionHash is invalid');
 if (!signature || !String(signature).startsWith('0x')) throw new Error('Packet signature is missing');
-
-const authorized = await contract.hermesAgent(agent.address);
-if (!authorized) throw new Error(`Agent wallet ${agent.address} is not authorized`);
+if (packet.agentWallet && ethers.isAddress(packet.agentWallet) && packet.agentWallet.toLowerCase() !== agent.address.toLowerCase()) {
+  throw new Error(`Packet is for ${packet.agentWallet}, but AGENT_PRIVATE_KEY is ${agent.address}`);
+}
+if (receiver.toLowerCase() === agent.address.toLowerCase()) {
+  throw new Error('Agent wallet must be different from receiver wallet');
+}
 
 const mintFee = await contract.mintFee();
 const value = mintFee * BigInt(slots);

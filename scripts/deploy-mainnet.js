@@ -53,7 +53,7 @@ if (Number(network.chainId) !== 8453) {
 console.log(`Deploying HERAgentMint on Base mainnet from ${deployer.address}`);
 console.log(`Treasury: ${TREASURY_ADDRESS}`);
 console.log(`Tax recipient: ${TAX_RECIPIENT_ADDRESS}`);
-console.log(`Initial Hermes Agent: ${INITIAL_HERMES_AGENT}`);
+console.log(`Initial agent tax-exempt wallet: ${INITIAL_HERMES_AGENT}`);
 
 const factory = new ethers.ContractFactory(abi, bytecode, deployer);
 const contract = await factory.deploy(TREASURY_ADDRESS, TAX_RECIPIENT_ADDRESS, INITIAL_HERMES_AGENT);

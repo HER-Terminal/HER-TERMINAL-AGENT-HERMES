@@ -4,14 +4,14 @@ Use these instructions when a user asks: "Mint HER on Base for my wallet."
 
 ## Rule
 
-The agent must own a wallet and must send the Base transaction itself. There is no relay fallback.
+The agent must own a wallet and must send the Base transaction itself. There is no HER relay and no direct website mint.
 
 Hermes Agent is recommended, but any agent can mine HER if:
 
 - it has a wallet/executor address
-- it has ETH on Base
-- its wallet is authorized in the HER contract
+- it has ETH on Base for gas and mint fee
 - it can call `agentMint(...)`
+- it receives a signed packet from the user
 
 ## Flow
 
@@ -43,7 +43,7 @@ Sign mission permit
 Copy the packet back to you
 ```
 
-4. Execute from your authorized agent wallet:
+4. Execute from the same agent wallet:
 
 ```solidity
 agentMint(receiver, slots, deadline, missionHash, signature)
@@ -57,35 +57,20 @@ msg.value = 0.0006 ETH * slots
 
 5. Return the BaseScan transaction link to the user.
 
-6. Optional: publish the receipt to the activity feed:
-
-```http
-POST /activity
-Content-Type: application/json
-
-{
-  "receiver": "0xUserWallet",
-  "slots": 1,
-  "txHash": "0x...",
-  "missionCode": "HER-8453-7FQX",
-  "executor": "0xYourAgentWallet",
-  "route": "wallet-enabled-agent"
-}
-```
-
 ## Mint Rules
 
 ```text
 1 mint = 1,000 HER
-Maximum per wallet = 10 mints
+Maximum per receiver wallet = 10 mints
 Fee per mint = 0.0006 ETH
-Mint sender = authorized agent wallet only
+Mint sender = the agent wallet inside the signed packet
+Agent wallet cannot be the same address as the receiver wallet
 ```
 
 ## Safety Rules
 
 - Do not change the receiver wallet.
 - Do not reuse old permits.
-- The agent wallet must match the agent address inside the signed permit.
-- The agent wallet must be authorized with `setHermesAgent(agentWallet, true)`.
+- Do not execute a packet made for another agent wallet.
 - The website does not mint directly.
+- The user signs permission; the agent sends the transaction.
