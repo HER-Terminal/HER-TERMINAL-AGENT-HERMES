@@ -12,6 +12,7 @@
     "test:agent-mint:mainnet": "node scripts/test-agent-mint-mainnet.js",
     "agent:check": "node scripts/check-agent.js",
     "agent:mint": "node scripts/agent-mint.js",
+    "trading:open-v4": "node scripts/open-v4-trading.js",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0"
   },
