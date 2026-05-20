@@ -548,7 +548,7 @@ label span {
 .activitySummary {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 10px;
   margin: -2px 0 8px;
   color: var(--muted);
   font-size: 11px;
@@ -561,7 +561,7 @@ label span {
 
 .activityWindow {
   position: relative;
-  height: 286px;
+  height: 300px;
   overflow: hidden;
   border: 0;
   background: transparent;
@@ -577,7 +577,7 @@ label span {
 }
 
 .activityRow {
-  min-height: 42px;
+  min-height: 40px;
   border: 0;
   border-top: 1px dashed var(--dim);
   background: transparent;
@@ -589,6 +589,24 @@ label span {
   padding: 8px 0;
   text-decoration: none;
   box-shadow: none;
+}
+
+.packetActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.packetActions button {
+  min-height: 32px;
+  justify-content: flex-start;
+  box-shadow: none;
+}
+
+.packetHelp {
+  display: grid;
+  gap: 2px;
 }
 
 .activityRow i {
@@ -679,12 +697,23 @@ label span {
   padding-top: 38px;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 14px;
   align-items: start;
 }
 
 .panelpage.single {
   grid-template-columns: minmax(320px, 760px);
+}
+
+.panelpage.setupPage,
+.panelpage.guidePage {
+  padding-top: 18px;
+}
+
+.panelStack {
+  display: grid;
+  gap: 14px;
+  align-content: start;
 }
 
 .panel {
@@ -701,6 +730,11 @@ label span {
   text-shadow: none;
 }
 
+.setupPage .panel,
+.guidePage .panel {
+  padding: 16px;
+}
+
 .block {
   display: block;
   white-space: pre-wrap;
@@ -713,12 +747,22 @@ label span {
   box-shadow: none;
 }
 
+.compactBlock {
+  line-height: 1.36;
+  margin-bottom: 10px;
+  padding: 10px;
+}
+
+.compactWarn {
+  margin-top: 0;
+}
+
 .step {
   display: grid;
   grid-template-columns: 42px 1fr;
   gap: 12px;
   border-top: 1px dashed var(--dim);
-  padding: 12px 0;
+  padding: 10px 0;
 }
 
 .step strong {
@@ -734,8 +778,8 @@ label span {
 
 .step p {
   color: var(--muted);
-  line-height: 1.55;
-  margin: 5px 0 0;
+  line-height: 1.42;
+  margin: 4px 0 0;
 }
 
 @media (max-width: 1080px) {
@@ -747,6 +791,8 @@ label span {
   .heroCopy,
   .mintGrid,
   .panelpage,
+  .setupPage,
+  .guidePage,
   .mintedBar,
   .guideGrid {
     grid-template-columns: 1fr;

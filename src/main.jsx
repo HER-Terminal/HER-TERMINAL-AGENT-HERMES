@@ -48,6 +48,7 @@ const HER_MINT_ABI = [
   'function mintFee() view returns (uint256)',
   'event AgentMinted(address indexed receiver,address indexed agent,uint8 slots,uint256 amount,uint256 fee,bytes32 missionHash)',
 ];
+const MINT_INTERFACE = new ethers.Interface(HER_MINT_ABI);
 
 const baseParams = {
   chainId: CONFIG.chainHex,
@@ -236,34 +237,12 @@ function App() {
 
   async function loadActivityFeed() {
     try {
-      const cached = await readActivityEndpoint('/activity.json');
-      if (cached.length) setActivityFeed(cached);
-
-      if (isAddress(CONFIG.contractAddress) && CONFIG.contractAddress !== ZERO) {
-        const provider = new ethers.JsonRpcProvider(CONFIG.rpcUrl);
-        const contract = getContract(provider);
-        const latest = await provider.getBlockNumber();
-        const events = await contract.queryFilter(contract.filters.AgentMinted(), Math.max(0, latest - 9000), latest);
-        const lines = events.slice(-10).reverse().map((event) => {
-          const { receiver, agent, slots, amount } = event.args;
-          const tokenAmount = Number(ethers.formatUnits(amount, 18)).toLocaleString();
-          return {
-            blockNumber: event.blockNumber,
-            txHash: event.transactionHash,
-            txUrl: `${CONFIG.explorer}/tx/${event.transactionHash}`,
-            agent,
-            receiver,
-            slots: Number(slots),
-            amount: tokenAmount,
-            status: 'mined',
-          };
-        });
-        if (lines.length) {
-          setActivityFeed(lines);
-          return;
-        }
+      const cached = await readActivityEndpoint('/api/activity');
+      if (cached.length) {
+        setActivityFeed(cached);
+        return;
       }
-      const lines = await readActivityEndpoint(`${CONFIG.agentProtocolUrl}/activity`);
+      const lines = await readActivityEndpoint('/activity.json');
       if (lines.length) setActivityFeed(lines);
     } catch {
       setActivityFeed(ACTIVITY_LINES);
@@ -280,6 +259,7 @@ function App() {
         return {
           time: item.time || '--:--',
           blockNumber: item.blockNumber,
+          logIndex: item.logIndex,
           txHash: item.txHash,
           txUrl: item.txUrl || (item.txHash ? `${CONFIG.explorer}/tx/${item.txHash}` : ''),
           agent: item.agent || item.executor || '',
@@ -660,6 +640,7 @@ function Mint(props) {
 function ActivityTerminal({ lines = ACTIVITY_LINES }) {
   const rows = normalizeActivity(lines);
   const mintedRows = rows.filter((row) => row.kind === 'mint');
+  const walletCount = new Set(mintedRows.map((row) => row.receiver?.toLowerCase()).filter(Boolean)).size;
   const primary = mintedRows[0];
   const terminalRows = buildMintRows(mintedRows);
 
@@ -671,7 +652,8 @@ function ActivityTerminal({ lines = ACTIVITY_LINES }) {
         <span>Detected from AgentMinted events on Base</span>
       </div>
       <div className="activitySummary">
-        <span>users: <b>{mintedRows.length || 0}</b></span>
+        <span>mints: <b>{mintedRows.length || 0}</b></span>
+        <span>wallets: <b>{walletCount || 0}</b></span>
         <span>latest block: <b>{primary?.blockNumber || '--'}</b></span>
         <span>latest HER: <b>{primary?.amount || '--'}</b></span>
       </div>
@@ -774,6 +756,11 @@ function MintProgress({ stats, refreshStats }) {
 
 function Agent({ account, agentAddress, permit, deadline, hermesPrompt, missionRequest, missionCode, slots, fee, copy, copied }) {
   const missionHash = missionCode ? ethers.id(missionCode.trim()) : '<mission hash>';
+  const valueWei = ethers.parseEther(CONFIG.feePerSlotEth) * BigInt(slots);
+  const canBuildPacket = Boolean(permit && isAddress(account) && isAddress(agentAddress) && deadline && missionCode);
+  const calldata = canBuildPacket
+    ? MINT_INTERFACE.encodeFunctionData('agentMint', [account, slots, deadline, missionHash, permit])
+    : '';
   const packet = {
     network: 'Base',
     chainId: CONFIG.chainId,
@@ -785,8 +772,18 @@ function Agent({ account, agentAddress, permit, deadline, hermesPrompt, missionR
     missionHash,
     args: [account || '<user wallet>', slots, deadline || '<deadline unix>', missionHash, permit || '<permit signature>'],
     value: fee,
+    valueWei: valueWei.toString(),
+    calldata: calldata || '<sign permit first>',
     requirement: 'transaction sender must be the agent wallet address in this packet',
   };
+  const cliCommand = [
+    'contract-send',
+    '--chain base',
+    `--to ${CONFIG.contractAddress}`,
+    `--value ${fee.replace(' ETH', '')}`,
+    `--data ${calldata || '<calldata from signed packet>'}`,
+    '--confirm-send',
+  ].join(' ');
   return (
     <main className="panelpage">
       <Panel title="mission request" icon={<Terminal />}>
@@ -795,14 +792,23 @@ function Agent({ account, agentAddress, permit, deadline, hermesPrompt, missionR
       </Panel>
       <Panel title="agent execution packet" icon={<KeyRound />}>
         <code className="block">{hermesPrompt}</code>
-        <button onClick={() => copy(hermesPrompt, 'prompt')}><Copy size={16} /> {copied === 'prompt' ? 'copied' : 'copy packet text'}</button>
+        <div className="packetActions">
+          <button onClick={() => copy(hermesPrompt, 'prompt')}><Copy size={16} /> {copied === 'prompt' ? 'copied' : 'copy text for Hermes'}</button>
+          <button disabled={!permit} onClick={() => copy(JSON.stringify(packet, null, 2), 'packet')}>
+            <Copy size={16} /> {copied === 'packet' ? 'copied' : 'copy JSON packet'}
+          </button>
+          <button disabled={!calldata} onClick={() => copy(calldata, 'calldata')}>
+            <Copy size={16} /> {copied === 'calldata' ? 'copied' : 'copy raw calldata'}
+          </button>
+          <button disabled={!calldata} onClick={() => copy(cliCommand, 'cli')}>
+            <Copy size={16} /> {copied === 'cli' ? 'copied' : 'copy command example'}
+          </button>
+        </div>
         <ConsoleLine k="mission" v={missionCode || '--'} />
         <ConsoleLine k="mission hash" v={missionCode ? missionHash : '--'} />
         <ConsoleLine k="deadline" v={deadline || '--'} />
+        <ConsoleLine k="calldata" v={calldata ? `${calldata.slice(0, 34)}...${calldata.slice(-18)}` : '--'} />
         <ConsoleLine k="signature" v={permit ? `${permit.slice(0, 24)}...${permit.slice(-12)}` : '--'} />
-        <button disabled={!permit} onClick={() => copy(JSON.stringify(packet, null, 2), 'packet')}>
-          <Copy size={16} /> {copied === 'packet' ? 'copied' : 'copy json packet'}
-        </button>
       </Panel>
     </main>
   );
@@ -834,76 +840,112 @@ function Passport({ account, agentAddress, chainId, permit, slots, fee, chainSta
 
 function AgentSetup({ copy, copied }) {
   const terminalCommand = [
-    'HER_AGENT_SETUP',
-    '1. Create or open an agent with its own wallet.',
-    '2. Fund that agent wallet with Base ETH for gas + mint fee.',
-    '3. Ask the agent to create a HER mission code.',
-    '4. Paste agent wallet + mission code in HER Terminal.',
-    '5. Sign permit, then give the packet back to the agent.',
+    'HER_AGENT_MINT_FLOW',
+    '1. Open Hermes Agent or any wallet-enabled agent.',
+    '2. Send the mission request prompt.',
+    '3. Agent returns: agent wallet + mission code.',
+    '4. Paste both into HER Terminal.',
+    '5. Connect receiver wallet on Base.',
+    '6. Sign permit.',
+    '7. Send the packet/calldata back to the same agent wallet.',
+    '8. Agent executes agentMint. HER lands in receiver wallet.',
   ].join('\n');
 
   const agentPrompt = [
-    'HER HERMES AGENT COMMAND',
+    'HER MISSION REQUEST FOR HERMES AGENT',
     '',
-    'Mint $HER for my wallet on Base.',
-    'Website: https://her-terminal.xyz',
+    'I want to mint $HER on Base through your agent wallet.',
+    'Do not send the transaction yet.',
+    '',
+    'Website: https://her-terminal.xyz/',
     `Contract: ${CONFIG.contractAddress}`,
+    `Mint fee: ${CONFIG.feePerSlotEth} ETH per mint`,
+    `Token per mint: ${CONFIG.perSlot.toLocaleString()} HER`,
     '',
-    'Step 1: use your own agent wallet as executor.',
-    'Step 2: create one mission code like HER-8453-XXXX.',
-    'Step 3: return your agent wallet address and mission code.',
-    'Step 4: wait for my signed execution packet.',
-    'Step 5: send agentMint from that same agent wallet.',
+    'Use your own wallet-enabled agent address as the executor.',
+    'Create one mission code for this mint, for example HER-8453-ABCD.',
     '',
-    'Do not mint from the website. The agent wallet must execute the transaction.',
+    'Return exactly:',
+    '1. Agent wallet address',
+    '2. Mission code',
+    '',
+    'Important:',
+    '- Your agent wallet must support contract call / raw calldata.',
+    '- Native ETH transfer only cannot mint HER.',
+    '- After I sign on HER Terminal, I will send you the execution packet.',
+    '- The same agent wallet must execute agentMint.',
   ].join('\n');
 
   return (
-    <main className="panelpage">
-      <Panel title="agent setup" icon={<PlugZap />}>
-        <Step n="01" t="Wallet inside agent" d="The agent needs its own wallet/executor. If the agent has no wallet, it cannot mine HER." />
-        <Step n="02" t="Fund Base ETH" d="Send enough Base ETH to the agent wallet for gas plus 0.0006 ETH per mint." />
-        <Step n="03" t="Create mission" d="Ask the agent for a HER mission code and its agent wallet address." />
-        <Step n="04" t="Return packet" d="After signing on HER Terminal, copy the packet back to the same agent wallet." />
-        <a className="scan" href="https://hermes-agent.nousresearch.com/" target="_blank" rel="noreferrer">
-          <ExternalLink size={16} /> open Hermes Agent
-        </a>
-      </Panel>
-      <Panel title="copy for your agent" icon={<Terminal />}>
-        <code className="block">{agentPrompt}</code>
-        <button onClick={() => copy(agentPrompt, 'agentSetupPrompt')}><Copy size={16} /> {copied === 'agentSetupPrompt' ? 'copied' : 'copy agent prompt'}</button>
-        <code className="block">{terminalCommand}</code>
-      </Panel>
+    <main className="panelpage setupPage">
+      <div className="panelStack">
+        <Panel title="agent setup" icon={<PlugZap />}>
+          <Step n="01" t="Open wallet agent" d="Use Hermes Agent or another agent that has its own wallet/executor." />
+          <Step n="02" t="Copy prompt" d="Paste the mission request prompt to your agent. The agent should not send a transaction yet." />
+          <Step n="03" t="Paste response" d="Agent returns its wallet address and mission code. Paste both into HER Terminal." />
+          <Step n="04" t="Sign permit" d="Connect your receiver wallet on Base and sign. This only creates permission for that exact agent mission." />
+          <Step n="05" t="Return packet" d="Copy packet text, JSON, raw calldata, or command example back to the same agent wallet." />
+          <Step n="06" t="Agent executes" d="Agent wallet calls agentMint, pays fee and gas, then HER arrives in your receiver wallet." />
+        </Panel>
+        <Panel title="packet buttons" icon={<KeyRound />}>
+          <div className="packetHelp">
+            <Step n="TXT" t="Text for Hermes" d="For chat agents. Paste it to Hermes so it understands the mission in plain language." />
+            <Step n="JSON" t="JSON packet" d="For agents/tools that read structured fields: receiver, agent, value, deadline, signature." />
+            <Step n="DATA" t="Raw calldata" d="For wallet CLI tools. This is the encoded contract call data for agentMint." />
+            <Step n="CMD" t="Command example" d="For terminal agents. It includes chain, contract, value, calldata, and confirm-send shape." />
+          </div>
+        </Panel>
+      </div>
+      <div className="panelStack">
+        <Panel title="first prompt for Hermes" icon={<Terminal />}>
+          <code className="block compactBlock">{agentPrompt}</code>
+          <button onClick={() => copy(agentPrompt, 'agentSetupPrompt')}><Copy size={16} /> {copied === 'agentSetupPrompt' ? 'copied' : 'copy agent prompt'}</button>
+          <code className="block compactBlock">{terminalCommand}</code>
+        </Panel>
+        <Panel title="agent wallet requirement" icon={<ShieldCheck />}>
+          <p className="warn compactWarn">
+            Agent wallet must support contract call or raw calldata. Native ETH transfer only cannot mint HER.
+            Add the HER contract to the agent wallet allowlist and execute the signed packet from the same agent wallet.
+          </p>
+          <ConsoleLine k="contract" v={CONFIG.contractAddress} />
+          <ConsoleLine k="function" v="agentMint(address,uint8,uint256,bytes32,bytes)" />
+          <ConsoleLine k="selector" v="0x283ae4fb" />
+        </Panel>
+      </div>
     </main>
   );
 }
 
 function Proof({ hermesPrompt, copy, copied }) {
   return (
-    <main className="panelpage">
-      <Panel title="beginner guide" icon={<Terminal />}>
-        <Step n="01" t="Prepare two wallets" d="Your normal wallet receives HER. Your agent wallet sends the mint transaction. They cannot be the same address." />
-        <Step n="02" t="Fund the agent wallet" d="The agent wallet needs Base ETH for gas and 0.0006 ETH per mint. Your receiver wallet only signs." />
-        <Step n="03" t="Ask for mission" d={`Copy the HER Hermes Agent Command and ask your agent to create a mission on ${CONFIG.chainName}.`} />
-        <Step n="04" t="Paste agent data" d="Paste the agent wallet and mission code into HER Terminal, then choose 1x, 2x, 5x, or 10x." />
-        <Step n="05" t="Sign permit" d="Sign the permit. This is not a mint transaction. It only approves that exact agent wallet for that exact mission." />
-        <Step n="06" t="Agent mines" d="Copy the packet to your agent. The agent wallet executes agentMint, pays the fee, and HER lands in your receiver wallet." />
-      </Panel>
-      <Panel title="contract" icon={<ExternalLink />}>
-        <ConsoleLine k="network" v={`${CONFIG.chainName} / ${CONFIG.chainId}`} />
-        <ConsoleLine k="address" v={CONFIG.contractAddress} />
-        <ConsoleLine k="treasury" v={CONFIG.treasuryAddress} />
-        <ConsoleLine k="explorer" v={CONFIG.explorer} />
-        <ConsoleLine k="permit meaning" v="permission for one mission only" />
-        <ConsoleLine k="direct mint" v="disabled / agent wallet only" />
-        <button onClick={() => copy(hermesPrompt, 'prompt2')}><Copy size={16} /> {copied === 'prompt2' ? 'copied' : 'copy command'}</button>
-      </Panel>
-      <Panel title="Hermes recommended" icon={<ExternalLink />}>
-        <p className="muted">Open the Nous Hermes Agent page, create or open a wallet-enabled agent, then ask it to create and execute your HER mint mission.</p>
-        <a className="scan" href="https://hermes-agent.nousresearch.com/" target="_blank" rel="noreferrer">
-          <ExternalLink size={16} /> open Hermes Agent
-        </a>
-      </Panel>
+    <main className="panelpage guidePage">
+      <div className="panelStack">
+        <Panel title="beginner guide" icon={<Terminal />}>
+          <Step n="01" t="Prepare two wallets" d="Your normal wallet receives HER. Your agent wallet sends the mint transaction. They cannot be the same address." />
+          <Step n="02" t="Fund the agent wallet" d="The agent wallet needs Base ETH for gas and 0.0006 ETH per mint. Your receiver wallet only signs." />
+          <Step n="03" t="Ask for mission" d={`Copy the HER Hermes Agent Command and ask your agent to create a mission on ${CONFIG.chainName}.`} />
+          <Step n="04" t="Paste agent data" d="Paste the agent wallet and mission code into HER Terminal, then choose 1x, 2x, 5x, or 10x." />
+          <Step n="05" t="Sign permit" d="Sign the permit. This is not a mint transaction. It only approves that exact agent wallet for that exact mission." />
+          <Step n="06" t="Agent mines" d="Copy the packet to your agent. The agent wallet executes agentMint, pays the fee, and HER lands in your receiver wallet." />
+        </Panel>
+      </div>
+      <div className="panelStack">
+        <Panel title="contract" icon={<ExternalLink />}>
+          <ConsoleLine k="network" v={`${CONFIG.chainName} / ${CONFIG.chainId}`} />
+          <ConsoleLine k="address" v={CONFIG.contractAddress} />
+          <ConsoleLine k="treasury" v={CONFIG.treasuryAddress} />
+          <ConsoleLine k="explorer" v={CONFIG.explorer} />
+          <ConsoleLine k="permit meaning" v="permission for one mission only" />
+          <ConsoleLine k="direct mint" v="disabled / agent wallet only" />
+          <button onClick={() => copy(hermesPrompt, 'prompt2')}><Copy size={16} /> {copied === 'prompt2' ? 'copied' : 'copy command'}</button>
+        </Panel>
+        <Panel title="Hermes recommended" icon={<ExternalLink />}>
+          <p className="muted">Open the Nous Hermes Agent page, create or open a wallet-enabled agent, then ask it to create and execute your HER mint mission.</p>
+          <a className="scan" href="https://hermes-agent.nousresearch.com/" target="_blank" rel="noreferrer">
+            <ExternalLink size={16} /> open Hermes Agent
+          </a>
+        </Panel>
+      </div>
     </main>
   );
 }

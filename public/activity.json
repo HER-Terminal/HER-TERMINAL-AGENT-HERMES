@@ -1,15 +1,6 @@
-[
-  {
-    "time": "11:30",
-    "blockNumber": 46243420,
-    "txHash": "0x87d047fcd90b9dcf508f6ec090157c2ea504b1c5f7a2b767c94eeee36898b792",
-    "txUrl": "https://basescan.org/tx/0x87d047fcd90b9dcf508f6ec090157c2ea504b1c5f7a2b767c94eeee36898b792",
-    "receiver": "0xd9b1a3830c7147f65A12540D7AC0fDa495D9D6fB",
-    "agent": "0xf688Dc523C4Bb206cB00c1f1195B6AD907b25b9a",
-    "slots": 1,
-    "amount": "1000.0",
-    "fee": "0.0006",
-    "missionHash": "0x59d919ad53e62256bb68db6504c79440e6777c57fbe1fdd83b7e51dd5908e010",
-    "route": "wallet-enabled-agent"
-  }
-]
+{
+  "updatedAt": null,
+  "chainId": 8453,
+  "contract": "0xAc13853FF1f9ac4fE51d2e191C7D8ed7d0Ad04dD",
+  "items": []
+}

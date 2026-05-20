@@ -10,6 +10,9 @@ const EXPLORER_URL = process.env.BASE_EXPLORER_URL || 'https://basescan.org';
 const START_BLOCK = Number(process.env.HER_INDEXER_START_BLOCK || 0);
 const POLL_MS = Number(process.env.HER_INDEXER_POLL_MS || 15000);
 const RANGE_SIZE = Number(process.env.HER_INDEXER_RANGE_SIZE || 9000);
+const LOOKBACK_BLOCKS = Number(process.env.HER_INDEXER_LOOKBACK_BLOCKS || 1200);
+const MAX_RANGES_PER_TICK = Number(process.env.HER_INDEXER_MAX_RANGES_PER_TICK || 6);
+const ACTIVITY_LIMIT = Number(process.env.HER_ACTIVITY_LIMIT || 120);
 const ACTIVITY_FILE = path.resolve(process.env.HER_ACTIVITY_FILE || 'public/activity.json');
 const STATE_FILE = path.resolve(process.env.HER_INDEXER_STATE_FILE || '.her-indexer-state.json');
 const ABI = [
@@ -33,47 +36,73 @@ setInterval(() => tick().catch((err) => console.error(err.message || err)), POLL
 async function tick() {
   const latest = await provider.getBlockNumber();
   const state = readJson(STATE_FILE, {});
-  const fromBlock = Math.max(Number(state.lastBlock || START_BLOCK || latest - RANGE_SIZE), 0);
-  if (fromBlock > latest) return;
-  const toBlock = Math.min(latest, fromBlock + RANGE_SIZE);
+  let current = readActivityItems();
+  const shouldBootstrap = current.length === 0 && START_BLOCK > 0;
+  const stateStart = Number(state.lastBlock || START_BLOCK || latest - RANGE_SIZE);
+  let fromBlock = Math.max(shouldBootstrap ? START_BLOCK : stateStart - LOOKBACK_BLOCKS, 0);
+  let ranges = 0;
+  let indexed = 0;
 
-  const events = await contract.queryFilter(contract.filters.AgentMinted(), fromBlock, toBlock);
-  if (!events.length) {
+  while (fromBlock <= latest && ranges < MAX_RANGES_PER_TICK) {
+    const toBlock = Math.min(latest, fromBlock + RANGE_SIZE);
+    const events = await contract.queryFilter(contract.filters.AgentMinted(), fromBlock, toBlock);
+
+    if (events.length) {
+      const next = events.map((event) => {
+        const { receiver, agent, slots, amount, fee, missionHash } = event.args;
+        return {
+          time: new Date().toISOString().slice(11, 16),
+          blockNumber: event.blockNumber,
+          logIndex: event.index,
+          txHash: event.transactionHash,
+          txUrl: `${EXPLORER_URL}/tx/${event.transactionHash}`,
+          receiver,
+          agent,
+          slots: Number(slots),
+          amount: ethers.formatUnits(amount, 18),
+          fee: ethers.formatEther(fee),
+          missionHash,
+          route: 'wallet-enabled-agent',
+        };
+      });
+
+      const seen = new Set();
+      current = [...next.reverse(), ...current]
+        .filter((item) => {
+          const key = `${item.txHash || ''}:${item.logIndex ?? ''}:${item.blockNumber || ''}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a, b) => Number(b.blockNumber || 0) - Number(a.blockNumber || 0))
+        .slice(0, ACTIVITY_LIMIT);
+      writeActivity(current);
+      indexed += events.length;
+    } else if (current.length === 0) {
+      writeActivity([]);
+    }
+
     writeJson(STATE_FILE, { lastBlock: toBlock + 1 });
-    return;
+    fromBlock = toBlock + 1;
+    ranges += 1;
   }
 
-  const current = readJson(ACTIVITY_FILE, []).filter((item) => typeof item === 'object' && item !== null);
-  const next = events.map((event) => {
-    const { receiver, agent, slots, amount, fee, missionHash } = event.args;
-    return {
-      time: new Date().toISOString().slice(11, 16),
-      blockNumber: event.blockNumber,
-      txHash: event.transactionHash,
-      txUrl: `${EXPLORER_URL}/tx/${event.transactionHash}`,
-      receiver,
-      agent,
-      slots: Number(slots),
-      amount: ethers.formatUnits(amount, 18),
-      fee: ethers.formatEther(fee),
-      missionHash,
-      route: 'wallet-enabled-agent',
-    };
+  if (indexed) console.log(`Indexed ${indexed} mint event(s) through block ${Math.min(latest, fromBlock - 1)}`);
+}
+
+function readActivityItems() {
+  const data = readJson(ACTIVITY_FILE, []);
+  const items = Array.isArray(data) ? data : data.items || [];
+  return items.filter((item) => typeof item === 'object' && item !== null);
+}
+
+function writeActivity(items) {
+  writeJson(ACTIVITY_FILE, {
+    updatedAt: new Date().toISOString(),
+    chainId: 8453,
+    contract: CONTRACT_ADDRESS,
+    items,
   });
-
-  const seen = new Set();
-  const merged = [...next.reverse(), ...current]
-    .filter((item) => {
-      const key = `${item.txHash || ''}:${item.logIndex || ''}:${item.blockNumber || ''}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 80);
-
-  writeJson(ACTIVITY_FILE, merged);
-  writeJson(STATE_FILE, { lastBlock: toBlock + 1 });
-  console.log(`Indexed ${events.length} mint event(s) through block ${toBlock}`);
 }
 
 function readJson(file, fallback) {
@@ -87,7 +116,9 @@ function readJson(file, fallback) {
 
 function writeJson(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`);
+  fs.renameSync(tmp, file);
 }
 
 function loadEnv() {
